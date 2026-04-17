@@ -196,28 +196,43 @@ app.post('/api/interview/chat', async (req, res) => {
     // Move to next question
     interview.currentQuestionIndex++;
 
-    // Check if interview is complete
-    const isComplete = interview.currentQuestionIndex >= INTERVIEW_QUESTIONS.length;
+    // Check if interview is complete or reaching the final message
+    const nextQuestion = INTERVIEW_QUESTIONS[interview.currentQuestionIndex];
+    const isComplete = interview.currentQuestionIndex >= INTERVIEW_QUESTIONS.length ||
+                       (nextQuestion && nextQuestion.field === 'complete');
 
     let aiMessage = '';
     if (isComplete) {
-      aiMessage = "Thank you so much for sharing your story! 🎉 Your interview is complete. We're generating your spotlight content now...";
+      if (nextQuestion && nextQuestion.field === 'complete') {
+        aiMessage = nextQuestion.question;
+      } else {
+        aiMessage = "Thank you so much for sharing your story! 🎉 Your interview is complete. We're generating your spotlight content now...";
+      }
 
       // Save interview
       saveInterview(interview);
+
+      // Auto-generate poster
+      interview.messages.push({ role: 'assistant', content: aiMessage });
+      activeInterviews.set(interviewId, interview);
+
+      res.json({
+        message: aiMessage,
+        isComplete: true,
+        interviewId,
+        autoGeneratePoster: true
+      });
     } else {
-      const nextQuestion = INTERVIEW_QUESTIONS[interview.currentQuestionIndex];
       aiMessage = nextQuestion.question;
+      interview.messages.push({ role: 'assistant', content: aiMessage });
+      activeInterviews.set(interviewId, interview);
+
+      res.json({
+        message: aiMessage,
+        isComplete: false,
+        interviewId
+      });
     }
-
-    interview.messages.push({ role: 'assistant', content: aiMessage });
-    activeInterviews.set(interviewId, interview);
-
-    res.json({
-      message: aiMessage,
-      isComplete,
-      interviewId
-    });
   } catch (error) {
     console.error('Error in chat:', error);
     res.status(500).json({ error: 'Failed to process message' });

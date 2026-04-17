@@ -13,12 +13,12 @@ function App() {
       <header className="app-header">
         <div className="header-content" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <img
-            src="/whale-cloud-logo.png"
-            alt="Whale Cloud"
-            style={{ height: '50px', objectFit: 'contain' }}
+            src="/envelope-logo.svg"
+            alt="Message"
+            style={{ height: '40px', objectFit: 'contain' }}
           />
           <div>
-            <h1>Talk to Maisie2</h1>
+            <h1>Start a Chat with Maisie2</h1>
             <p>Whale Spotlight 2026</p>
           </div>
         </div>

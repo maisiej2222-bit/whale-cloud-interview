@@ -116,7 +116,10 @@ const PublicInterview = () => {
 
       if (response.data.isComplete) {
         setInterviewComplete(true);
-        generatePoster(response.data.interviewId);
+        // Auto-generate poster immediately
+        if (response.data.autoGeneratePoster) {
+          generatePoster(response.data.interviewId);
+        }
       }
     } catch (error) {
       console.error('Error:', error);
@@ -200,7 +203,10 @@ const PublicInterview = () => {
 
           if (response.data.isComplete) {
             setInterviewComplete(true);
-            generatePoster(response.data.interviewId);
+            // Auto-generate poster immediately
+            if (response.data.autoGeneratePoster) {
+              generatePoster(response.data.interviewId);
+            }
           }
         } catch (error) {
           console.error('Error:', error);
@@ -232,27 +238,6 @@ const PublicInterview = () => {
             <h2>💬 Interview Session</h2>
             <p>Share your Whale Cloud experience with us</p>
           </div>
-          {messages.length > 0 && (
-            <button
-              onClick={startNewInterview}
-              className="new-interview-btn"
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#f3f4f6',
-                border: '1px solid #e5e7eb',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#374151',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => e.target.style.backgroundColor = '#e5e7eb'}
-              onMouseOut={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-            >
-              🔄 Start New Interview
-            </button>
-          )}
         </div>
 
         <div className="messages-area">
