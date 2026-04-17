@@ -1,18 +1,16 @@
 {
   "name": "whale-cloud-interview-server",
-  "version": "1.0.0",
-  "description": "Whale Cloud Interview Platform Backend",
+  "version": "2.0.0",
+  "description": "Whale Cloud Interview Platform Backend - Questionnaire Mode",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
-    "body-parser": "^1.20.2",
     "docx": "^8.2.0",
     "uuid": "^9.0.0"
   },
