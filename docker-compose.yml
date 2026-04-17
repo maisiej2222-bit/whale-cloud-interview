@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  whale-cloud-interview:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whale-cloud-interview
+    ports:
+      - "5001:5001"
+    environment:
+      # Anthropic API Configuration
+      - ANTHROPIC_AUTH_TOKEN=ailab_RQZwGRKuPwONzqJyRMhVeQkxYYex2lKu/AhRkMyKRY0ixPqp9ya60MWwL8ffvDV6JLia+weHUMrF8AdmnFnVrfWTd1INneGvdnkzb7pypmma0inl7HVvEvE=
+      - ANTHROPIC_BASE_URL=https://lab.iwhalecloud.com/gpt-proxy/anthropic
+      - ANTHROPIC_MODEL=claude-4.5-sonnet
+
+      # Server Configuration
+      - NODE_ENV=production
+      - PORT=5001
+
+      # Admin Password
+      - ADMIN_PASSWORD=whale2026
+
+    volumes:
+      # 持久化数据目录
+      - ./data:/app/data
+
+    restart: unless-stopped
+
+    networks:
+      - whale-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  whale-network:
+    driver: bridge
