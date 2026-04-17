@@ -209,12 +209,12 @@ app.post('/api/interview/chat', async (req, res) => {
         aiMessage = "Thank you so much for sharing your story! 🎉 Your interview is complete. We're generating your spotlight content now...";
       }
 
-      // Save interview
-      saveInterview(interview);
-
-      // Auto-generate poster
+      // Add final message first
       interview.messages.push({ role: 'assistant', content: aiMessage });
       activeInterviews.set(interviewId, interview);
+
+      // Save interview with all messages
+      saveInterview(interview);
 
       res.json({
         message: aiMessage,
@@ -298,16 +298,17 @@ function saveInterview(interview) {
     const dataToSave = {
       ...interview,
       timestamp: interview.createdAt,
-      name: interview.answers.name,
-      companyId: interview.answers.companyId,
-      joinTime: interview.answers.joinTime,
-      team: interview.answers.team,
-      position: interview.answers.position,
-      currentRole: interview.answers.currentRole
+      name: interview.answers.name || 'Anonymous',
+      companyId: interview.answers.companyId || 'N/A',
+      joinTime: interview.answers.joinTime || 'N/A',
+      team: interview.answers.team || 'N/A',
+      position: interview.answers.position || 'N/A',
+      currentRole: interview.answers.currentRole || 'N/A'
     };
     fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
+    console.log(`✅ Interview saved: ${interview.id} - ${interview.answers.name || 'Anonymous'}`);
   } catch (error) {
-    console.error('Error saving interview:', error);
+    console.error('❌ Error saving interview:', error);
   }
 }
 

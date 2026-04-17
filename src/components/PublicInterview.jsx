@@ -462,6 +462,49 @@ const PublicInterview = () => {
           ) : null}
         </div>
       )}
+
+      {/* Start New Chat Button at Bottom */}
+      {interviewComplete && posterContent && (
+        <div style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'center',
+          marginTop: '32px',
+          paddingBottom: '32px'
+        }}>
+          <button
+            onClick={startNewInterview}
+            style={{
+              padding: '16px 48px',
+              backgroundColor: '#0EA5E9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '18px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+              transition: 'all 0.3s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.backgroundColor = '#0284C7';
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 6px 8px rgba(0, 0, 0, 0.15)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = '#0EA5E9';
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+            }}
+          >
+            <span style={{ fontSize: '24px' }}>💬</span>
+            Start a New Chat
+          </button>
+        </div>
+      )}
     </div>
   );
 };
