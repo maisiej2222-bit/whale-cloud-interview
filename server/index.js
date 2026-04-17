@@ -38,96 +38,96 @@ if (!fs.existsSync(DATA_DIR)) {
 // In-memory storage for active interviews
 const activeInterviews = new Map();
 
-// 预设问题列表
+// 预设问题列表 - 优化版：更具体、更有引导性
 const INTERVIEW_QUESTIONS = [
   {
     id: 1,
-    question: "Hello! 👋 Welcome to the Whale Cloud Employee Spotlight Interview. Let's start with the basics - what's your full name?",
+    question: "Hello! 👋 Welcome to the Whale Cloud Employee Spotlight Interview. I'm excited to hear your story! Let's start with the basics - what's your full name?",
     field: 'name'
   },
   {
     id: 2,
-    question: "Great to meet you! What's your company ID or employee number?",
+    question: "Great to meet you! Could you provide your company ID or employee number?",
     field: 'companyId'
   },
   {
     id: 3,
-    question: "When did you join Whale Cloud Technology?",
+    question: "When did you join Whale Cloud Technology? (For example: January 2022, or Q3 2021)",
     field: 'joinTime'
   },
   {
     id: 4,
-    question: "Which team or department are you currently with?",
+    question: "Which team or department are you currently working with? (For example: Cloud Platform Team, Customer Success, R&D, etc.)",
     field: 'team'
   },
   {
     id: 5,
-    question: "What's your current position or job title?",
+    question: "What's your current position or job title? (For example: Senior Software Engineer, Product Manager, Solutions Architect, etc.)",
     field: 'position'
   },
   {
     id: 6,
-    question: "Could you briefly describe your current role and main responsibilities?",
+    question: "Could you describe your current role in more detail? What are your day-to-day responsibilities and what does a typical week look like for you?",
     field: 'currentRole'
   },
   {
     id: 7,
-    question: "Do you have a personal motto or guiding principle in your life and work? 💭",
+    question: "Do you have a personal motto or guiding principle that drives you in your life and work? Something that keeps you motivated when facing challenges? 💭",
     field: 'motto'
   },
   {
     id: 8,
-    question: "Before we continue, please upload a professional profile photo using the upload button (📤) if you haven't already!",
+    question: "📸 Before we continue, please upload a professional profile photo using the upload button (📤) in the chat interface. This will be featured in your spotlight!",
     field: 'photoReminder'
   },
   {
     id: 9,
-    question: "What are the main projects you're currently involved in at Whale Cloud?",
+    question: "Now let's talk about your work! What are the main projects or initiatives you're currently leading or contributing to? Please name 2-3 key projects and briefly explain what each one is about.",
     field: 'projects'
   },
   {
     id: 10,
-    question: "What achievement or project are you most proud of during your time here? Tell me about the impact it had. 🏆",
+    question: "🏆 What's the achievement or project you're most proud of during your time at Whale Cloud? Please share specific details: What was the challenge? What was your approach? What impact did it create for the team or customers?",
     field: 'achievement'
   },
   {
     id: 11,
-    question: "What specific contributions have you made to your team or projects?",
+    question: "Can you share a specific example of a critical situation where your contribution made a significant difference? Maybe a time when urgent support was needed, or when you helped solve a major technical challenge?",
     field: 'contributions'
   },
   {
     id: 12,
-    question: "How would you describe the company culture at Whale Cloud?",
+    question: "How would you describe Whale Cloud's company culture? What makes it unique in your opinion? What do you appreciate most about working here?",
     field: 'culture'
   },
   {
     id: 13,
-    question: "Have you had any cross-cultural collaboration experiences? What challenges did you face and how did you handle them? 🌍",
+    question: "🌍 Working in a global company means collaborating across cultures and time zones. Could you share a specific experience of cross-cultural collaboration? What challenges did you encounter (maybe communication styles, time zone differences, or cultural differences) and how did you navigate them?",
     field: 'crossCultural'
   },
   {
     id: 14,
-    question: "How do you currently use AI tools in your daily work?",
+    question: "🤖 Let's talk about AI! How are you currently using AI tools in your daily work? Please give specific examples - which tools do you use, for what tasks, and how often? (For example: using ChatGPT for code review, Copilot for coding assistance, AI for data analysis, etc.)",
     field: 'aiUsage'
   },
   {
     id: 15,
-    question: "What's your perspective on AI's role in your field? How has it influenced your efficiency? 🤖",
+    question: "What's your perspective on AI's role in your field? Has AI significantly changed how you work? Can you quantify the efficiency gains? (For example: 'AI helps me code 30% faster' or 'AI reduced my research time from hours to minutes')",
     field: 'aiPerspective'
   },
   {
     id: 16,
-    question: "What valuable lessons have you learned during your professional journey at Whale Cloud?",
+    question: "Reflecting on your professional journey at Whale Cloud, what are 2-3 valuable lessons you've learned? These could be technical skills, soft skills, mindset shifts, or insights about teamwork and communication.",
     field: 'lessons'
   },
   {
     id: 17,
-    question: "What advice would you give to your teammates or new members joining Whale Cloud? 💡",
+    question: "💡 Based on your experience, what advice would you give to your teammates or new members joining Whale Cloud? If you could go back to your first day, what's one thing you wish you had known?",
     field: 'advice'
   },
   {
     id: 18,
-    question: "Thank you so much for sharing these valuable insights! 🎉 Your interview is now complete. We'll generate your spotlight content shortly.",
+    question: "Thank you so much for sharing these valuable insights! 🎉 Your interview is now complete. We'll generate your personalized spotlight content shortly. It's been wonderful learning about your journey at Whale Cloud!",
     field: 'complete'
   }
 ];
