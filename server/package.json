@@ -2,6 +2,7 @@
   "name": "whale-cloud-interview-server",
   "version": "1.0.0",
   "description": "Whale Cloud Interview Platform Backend",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
