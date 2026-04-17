@@ -255,6 +255,16 @@ const AdminPanel = ({ isAuthenticated, onAuthenticate }) => {
                   </button>
                 </div>
                 <div className="modal-body">
+                  {/* Profile Photo */}
+                  {selectedInterview.profilePhoto && (
+                    <div className="detail-section">
+                      <h4>Profile Photo</h4>
+                      <div className="profile-photo-display">
+                        <img src={selectedInterview.profilePhoto} alt="Profile" />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Basic Info */}
                   <div className="detail-section">
                     <h4>Basic Information</h4>

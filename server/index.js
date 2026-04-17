@@ -57,6 +57,7 @@ REQUIRED INFORMATION TO COLLECT:
    - Position/Job Title
    - Current Role description
    - Personal Motto (life philosophy or guiding principle)
+   - Profile Photo (ask them to upload a professional photo using the upload button)
 
 2. Professional Experience:
    - Main projects they're involved in
@@ -100,10 +101,11 @@ QUESTION EXAMPLES (adapt based on role):
 
 PROGRESSION:
 1. Start with warm introduction and basic info (name, role, team)
-2. Move to professional experience and achievements
-3. Explore collaboration and cultural insights
-4. Discuss AI impact and perspectives
-5. After 12-15 meaningful exchanges covering all key areas, naturally conclude
+2. Early in the interview (after getting name and role), ask them to upload a professional profile photo using the upload button (📤) in the chat interface
+3. Move to professional experience and achievements
+4. Explore collaboration and cultural insights
+5. Discuss AI impact and perspectives
+6. After 12-15 meaningful exchanges covering all key areas, naturally conclude
 
 COMPLETION SIGNAL:
 When you have collected sufficient detailed information across all areas, say:
@@ -222,7 +224,7 @@ app.post('/api/interview/start', async (req, res) => {
 // Continue interview chat
 app.post('/api/interview/chat', async (req, res) => {
   try {
-    const { interviewId, message } = req.body;
+    const { interviewId, message, profilePhoto } = req.body;
 
     const interview = activeInterviews.get(interviewId) || {
       id: interviewId,
@@ -231,6 +233,11 @@ app.post('/api/interview/chat', async (req, res) => {
       extractedData: {},
       isPublic: true
     };
+
+    // Save profile photo if provided
+    if (profilePhoto && !interview.profilePhoto) {
+      interview.profilePhoto = profilePhoto;
+    }
 
     // Add user message
     interview.messages.push({ role: 'user', content: message });

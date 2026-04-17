@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle, Copy, Check } from 'lucide-react';
+import { Send, CheckCircle, Copy, Check, Upload, Image } from 'lucide-react';
 import axios from 'axios';
 import './PublicInterview.css';
 
@@ -12,7 +12,10 @@ const PublicInterview = () => {
   const [posterContent, setPosterContent] = useState(null);
   const [generatingPoster, setGeneratingPoster] = useState(false);
   const [copiedField, setCopiedField] = useState('');
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     startInterview();
@@ -48,7 +51,8 @@ const PublicInterview = () => {
     try {
       const response = await axios.post('/api/interview/chat', {
         interviewId,
-        message: input
+        message: input,
+        profilePhoto: profilePhoto
       });
 
       const assistantMessage = {
@@ -93,6 +97,41 @@ const PublicInterview = () => {
     setTimeout(() => setCopiedField(''), 2000);
   };
 
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Photo size should be less than 5MB');
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePhoto(reader.result);
+        setPhotoPreview(reader.result);
+
+        // Add a system message about photo upload
+        const photoMessage = {
+          role: 'system',
+          content: '✅ Profile photo uploaded successfully!'
+        };
+        setMessages(prev => [...prev, photoMessage]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerPhotoUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -115,7 +154,7 @@ const PublicInterview = () => {
           {messages.map((msg, idx) => (
             <div key={idx} className={`msg ${msg.role}`}>
               <div className="msg-avatar">
-                {msg.role === 'assistant' ? '🤖' : '👤'}
+                {msg.role === 'assistant' ? '🤖' : msg.role === 'system' ? '📸' : '👤'}
               </div>
               <div className="msg-bubble">
                 {msg.content}
@@ -146,21 +185,47 @@ const PublicInterview = () => {
 
         {!interviewComplete && (
           <div className="input-zone">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your answer here..."
-              rows="3"
-              disabled={loading}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || loading}
-              className="send-button"
-            >
-              <Send size={20} />
-            </button>
+            <div className="input-container-full">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Type your answer here..."
+                rows="3"
+                disabled={loading}
+              />
+              <div className="input-actions">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handlePhotoUpload}
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
+                {photoPreview ? (
+                  <div className="photo-preview-small">
+                    <img src={photoPreview} alt="Profile" />
+                    <Check size={16} className="check-icon" />
+                  </div>
+                ) : (
+                  <button
+                    onClick={triggerPhotoUpload}
+                    className="upload-button"
+                    title="Upload profile photo"
+                    type="button"
+                  >
+                    <Upload size={20} />
+                  </button>
+                )}
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || loading}
+                  className="send-button"
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
