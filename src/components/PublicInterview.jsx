@@ -18,12 +18,45 @@ const PublicInterview = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    startInterview();
+    // Try to recover session
+    const savedSession = localStorage.getItem('whale_interview_session');
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        setMessages(session.messages || []);
+        setInterviewId(session.interviewId);
+        setInterviewComplete(session.interviewComplete || false);
+        setProfilePhoto(session.profilePhoto);
+        setPhotoPreview(session.profilePhoto);
+        if (session.posterContent) {
+          setPosterContent(session.posterContent);
+        }
+      } catch (error) {
+        console.error('Error recovering session:', error);
+        startInterview();
+      }
+    } else {
+      startInterview();
+    }
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Auto-save session
+  useEffect(() => {
+    if (interviewId && messages.length > 0) {
+      const session = {
+        interviewId,
+        messages,
+        interviewComplete,
+        profilePhoto,
+        posterContent
+      };
+      localStorage.setItem('whale_interview_session', JSON.stringify(session));
+    }
+  }, [interviewId, messages, interviewComplete, profilePhoto, posterContent]);
 
   const startInterview = async () => {
     try {
@@ -37,6 +70,25 @@ const PublicInterview = () => {
         content: "Hello! I'm your Whale Cloud interviewer. I'd like to learn about your experience with us. Let's start - what's your name?"
       }]);
     }
+  };
+
+  const startNewInterview = () => {
+    // Clear session storage
+    localStorage.removeItem('whale_interview_session');
+
+    // Reset all state
+    setMessages([]);
+    setInput('');
+    setLoading(false);
+    setInterviewComplete(false);
+    setInterviewId(null);
+    setPosterContent(null);
+    setGeneratingPoster(false);
+    setProfilePhoto(null);
+    setPhotoPreview(null);
+
+    // Start fresh interview
+    startInterview();
   };
 
   const handleSend = async () => {
@@ -84,6 +136,11 @@ const PublicInterview = () => {
         interviewId: id
       });
       setPosterContent(response.data.posterContent);
+
+      // Save poster to session storage
+      const session = JSON.parse(localStorage.getItem('whale_interview_session') || '{}');
+      session.posterContent = response.data.posterContent;
+      localStorage.setItem('whale_interview_session', JSON.stringify(session));
     } catch (error) {
       console.error('Error generating poster:', error);
     } finally {
@@ -97,7 +154,7 @@ const PublicInterview = () => {
     setTimeout(() => setCopiedField(''), 2000);
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
       // Check file size (max 5MB)
@@ -113,7 +170,7 @@ const PublicInterview = () => {
       }
 
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         setProfilePhoto(reader.result);
         setPhotoPreview(reader.result);
 
@@ -122,7 +179,34 @@ const PublicInterview = () => {
           role: 'system',
           content: '✅ Profile photo uploaded successfully!'
         };
-        setMessages(prev => [...prev, photoMessage]);
+        const updatedMessages = [...messages, photoMessage];
+        setMessages(updatedMessages);
+
+        // Auto-progress to next question
+        setLoading(true);
+        try {
+          const response = await axios.post('/api/interview/chat', {
+            interviewId,
+            message: '✅ Photo uploaded',
+            profilePhoto: reader.result
+          });
+
+          const assistantMessage = {
+            role: 'assistant',
+            content: response.data.message
+          };
+
+          setMessages([...updatedMessages, assistantMessage]);
+
+          if (response.data.isComplete) {
+            setInterviewComplete(true);
+            generatePoster(response.data.interviewId);
+          }
+        } catch (error) {
+          console.error('Error:', error);
+        } finally {
+          setLoading(false);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -148,13 +232,34 @@ const PublicInterview = () => {
             <h2>💬 Interview Session</h2>
             <p>Share your Whale Cloud experience with us</p>
           </div>
+          {messages.length > 0 && (
+            <button
+              onClick={startNewInterview}
+              className="new-interview-btn"
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#f3f4f6',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#374151',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+            >
+              🔄 Start New Interview
+            </button>
+          )}
         </div>
 
         <div className="messages-area">
           {messages.map((msg, idx) => (
             <div key={idx} className={`msg ${msg.role}`}>
               <div className="msg-avatar">
-                {msg.role === 'assistant' ? '🤖' : msg.role === 'system' ? '📸' : '👤'}
+                {msg.role === 'assistant' ? '👩‍💼' : msg.role === 'system' ? '📸' : '👤'}
               </div>
               <div className="msg-bubble">
                 {msg.content}
@@ -163,7 +268,7 @@ const PublicInterview = () => {
           ))}
           {loading && (
             <div className="msg assistant">
-              <div className="msg-avatar">🤖</div>
+              <div className="msg-avatar">👩‍💼</div>
               <div className="msg-bubble">
                 <div className="typing">
                   <span></span><span></span><span></span>

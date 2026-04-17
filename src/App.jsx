@@ -11,9 +11,16 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="header-content">
-          <h1>🐋 Whale Cloud Interview Platform</h1>
-          <p>Employee Spotlight Series 2026</p>
+        <div className="header-content" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <img
+            src="/whale-cloud-logo.png"
+            alt="Whale Cloud"
+            style={{ height: '50px', objectFit: 'contain' }}
+          />
+          <div>
+            <h1>Talk to Maisie2</h1>
+            <p>Whale Spotlight 2026</p>
+          </div>
         </div>
         <nav className="header-nav">
           <button
