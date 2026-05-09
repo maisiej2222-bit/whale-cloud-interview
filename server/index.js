@@ -219,15 +219,134 @@ app.post('/api/interview/chat', async (req, res) => {
     const isComplete = interview.currentQuestionIndex >= INTERVIEW_QUESTIONS.length ||
                        (nextQuestion && nextQuestion.field === 'complete');
 
+    // Generate acknowledgment for the user's answer
+    function getAcknowledgment(field, answer) {
+      // Handle photo upload
+      if (field === 'photoReminder' || (answer && answer.includes('Photo uploaded'))) {
+        return '📸 Your profile photo has been saved successfully! It will look great on your spotlight poster.';
+      }
+      const short = (answer || '').length < 50;
+      const long = (answer || '').length > 200;
+
+      const acknowledgments = {
+        name: [
+          `Wonderful to meet you, ${answer}! 😊`,
+          `What a lovely name, ${answer}! ✨`,
+          `Great to have you here, ${answer}! 👋`,
+        ],
+        companyId: [
+          `Got it — thanks for confirming! ✅`,
+          `Recorded your company ID. Thanks! 📝`,
+        ],
+        joinTime: [
+          `That's great, you've been part of the Whale Cloud family since ${answer}! 🐋`,
+          `${answer} — so you've had quite a journey with us! 🚀`,
+        ],
+        team: [
+          `The ${answer} team sounds like an exciting place! 🎯`,
+          `Working in ${answer} — that's fantastic! 💪`,
+        ],
+        position: [
+          `${answer} — impactful role! Let me learn more about what you do. 🔍`,
+          `That's a key position! Thanks for sharing. ⭐`,
+        ],
+        currentRole: [
+          long ? `Really insightful description of your role! I can see you're deeply involved in meaningful work. 💼` : `Thanks for sharing what you do! Let's dive deeper. 💼`,
+          `I appreciate the details about your day-to-day — gives me a clear picture! 🌟`,
+        ],
+        motto: [
+          long ? `What an inspiring motto! It really gives a sense of your drive and values. 💭` : `Great motto — short and meaningful! 💭`,
+          `I love that guiding principle! It says a lot about your approach. ✨`,
+        ],
+        projects: [
+          long ? `Those projects sound impressive and impactful! Thank you for the detailed rundown. 🚀` : `Exciting projects! Let's hear about your proudest moment next. 🚀`,
+          `Thanks for walking me through your work — it sounds like you're making real contributions! 👏`,
+        ],
+        achievement: [
+          long ? `Wow, what an incredible achievement! The way you described the challenge, approach, and impact is truly inspiring. 🏆` : `That's a remarkable achievement — you should be proud! 🏆`,
+          `What a story of perseverance and success! This is exactly the kind of impact we love to spotlight. 🌟`,
+        ],
+        contributions: [
+          long ? `That's a powerful example of stepping up when it mattered most. Your contribution clearly made a difference! 💪` : `Thank you for sharing that — every contribution counts! 💪`,
+          `I can see why you were nominated — that kind of dedication sets a great example. 🔥`,
+        ],
+        culture: [
+          long ? `Beautiful perspective on our culture! Your insights about Whale Cloud are exactly what makes this series special. 🌟` : `I appreciate your take on our culture — it's what makes Whale Cloud unique! 🌊`,
+          `Your thoughts on the company culture really resonate. Thank you for sharing so openly! 💙`,
+        ],
+        crossCultural: [
+          long ? `What a fascinating cross-cultural experience! You navigated those challenges brilliantly — that's a skill many people never develop. 🌍` : `Cross-cultural collaboration is never easy, and your experience shows real adaptability! 🌍`,
+          `These cross-cultural stories are so valuable — thank you for sharing your journey! 🤝`,
+        ],
+        aiUsage: [
+          long ? `Fantastic overview of your AI toolkit! It's inspiring to see how you're embracing new technologies to work smarter. 🤖` : `Great to hear how you're using AI! Every efficiency gain counts. ⚡`,
+          `Your AI adoption approach is forward-thinking — thanks for the specifics! 🚀`,
+        ],
+        aiPerspective: [
+          long ? `Brilliant analysis! Your perspective on AI's impact and the quantifiable gains really paint a clear picture of the future. ⚡` : `Sharp insight on AI's role! The numbers speak volumes. 📊`,
+          `I love how you've thought about this — AI is clearly a game-changer in your field. 💡`,
+        ],
+        lessons: [
+          long ? `These are such valuable lessons! The depth of your reflection shows real growth during your time here. 📚` : `Powerful lessons learned — each one tells a story of growth. 🌱`,
+          `Thank you for sharing those insights — wisdom earned through experience is the best kind. 💎`,
+        ],
+        advice: [
+          long ? `Outstanding advice! I'm sure new team members would benefit immensely from these words of wisdom. 💡` : `Great advice — sometimes the simplest guidance is the most powerful! ✨`,
+          `That's the kind of mentorship that builds a strong team culture. Thank you! 🙏`,
+        ],
+        openEnded: [
+          `Thank you for sharing even more of your journey with me — it's been wonderful hearing your full story! 🌈`,
+          `I really appreciate you opening up about this. Every story adds depth to our Whale Spotlight! 💙`,
+        ]
+      };
+
+      const options = acknowledgments[field] || [
+        `Thanks for sharing that! 😊`,
+        `Wonderful, I appreciate your response! ✨`,
+        `Great answer — let's continue! 👍`,
+      ];
+      return options[Math.floor(Math.random() * options.length)];
+    }
+
+    // Generate transition hint based on current and next field
+    function getTransitionHint(currentField, nextField) {
+      const transitions = {
+        'name|companyId': 'Now, I just need a few more details from you.',
+        'companyId|joinTime': '',
+        'joinTime|team': 'Let me learn about where you fit in our organization.',
+        'team|position': '',
+        'position|currentRole': "I'm curious about the details of your work.",
+        'currentRole|motto': "That gives me a great picture of your role. Now let's get a bit more personal! 🎯",
+        'motto|photoReminder': "A motto says so much about who you are. Now, let's add a visual element! 🎨",
+        'photoReminder|projects': "Photo is all set! Now let's dive into the exciting part — your work and impact.",
+        'projects|achievement': "Great projects! Now I'd love to zoom in on something you're especially proud of.",
+        'achievement|contributions': "That's a highlight worth celebrating! Let's talk about another impactful moment.",
+        'contributions|culture': "Your contributions speak volumes. Now I'd like to hear your thoughts on our workplace culture.",
+        'culture|crossCultural': "Culture shapes everything. Speaking of which, let's talk about working across borders.",
+        'crossCultural|aiUsage': "Cross-cultural skills are invaluable. Now, a topic that's reshaping everyone's work — AI!",
+        'aiUsage|aiPerspective': "You're clearly embracing AI! Let me ask you to zoom out and share the bigger picture.",
+        'aiPerspective|lessons': "Fascinating perspective on AI! Now let's reflect on the lessons your Whale Cloud journey has taught you.",
+        'lessons|advice': "Those are lessons worth their weight in gold. Now, what would you tell others starting their journey?",
+        'advice|openEnded': "Wonderful advice — I'm sure many will benefit from it. One more open question before we wrap up!",
+        'openEnded|complete': "Thank you for those final thoughts. It's been an incredible conversation! 🎉",
+      };
+
+      const key = `${currentField}|${nextField}`;
+      return transitions[key] || '';
+    }
+
     let aiMessage = '';
+    let isReallyComplete = false;
+
     if (isComplete) {
+      isReallyComplete = true;
       if (nextQuestion && nextQuestion.field === 'complete') {
         aiMessage = nextQuestion.question;
       } else {
-        aiMessage = "Thank you so much for sharing your story! 🎉 Your interview is complete. We're generating your spotlight content now...";
+        aiMessage = "Thank you so much for sharing your wonderful story with me! 🎉\n\nI've learned so much about your journey at Whale Cloud, and I'm excited to generate your personalized Whale Spotlight content. It's been such a pleasure learning about your experiences! 💙";
       }
 
-      // Add final message first
+      // Add closing message
       interview.messages.push({ role: 'assistant', content: aiMessage });
       activeInterviews.set(interviewId, interview);
 
@@ -238,10 +357,16 @@ app.post('/api/interview/chat', async (req, res) => {
         message: aiMessage,
         isComplete: true,
         interviewId,
-        autoGeneratePoster: true
+        autoGeneratePoster: true,
+        needsSave: true
       });
     } else {
-      aiMessage = nextQuestion.question;
+      // Build natural transition with acknowledgment + hint + next question
+      const ack = getAcknowledgment(currentQuestion.field, message);
+      const hint = getTransitionHint(currentQuestion.field, nextQuestion.field);
+      const nextQ = nextQuestion.question;
+
+      aiMessage = `${ack}${hint ? '\n\n' + hint + '\n\n' : '\n\n'}${nextQ}`;
       interview.messages.push({ role: 'assistant', content: aiMessage });
       activeInterviews.set(interviewId, interview);
 

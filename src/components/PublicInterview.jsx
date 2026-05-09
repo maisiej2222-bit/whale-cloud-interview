@@ -116,10 +116,12 @@ const PublicInterview = () => {
 
       if (response.data.isComplete) {
         setInterviewComplete(true);
-        // Auto-generate poster immediately
-        if (response.data.autoGeneratePoster) {
-          generatePoster(response.data.interviewId);
-        }
+        // Show save confirmation, then auto-generate
+        setTimeout(() => {
+          if (response.data.needsSave || response.data.autoGeneratePoster) {
+            generatePoster(response.data.interviewId);
+          }
+        }, 1000);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -261,12 +263,21 @@ const PublicInterview = () => {
               </div>
             </div>
           )}
-          {interviewComplete && (
+          {interviewComplete && !posterContent && (
             <div className="complete-banner">
               <CheckCircle size={40} color="#10b981" />
               <div>
                 <h3>Interview Complete!</h3>
-                <p>Thank you for sharing your story. Generating your spotlight content...</p>
+                <p>Your responses have been saved. Crafting your spotlight content...</p>
+              </div>
+            </div>
+          )}
+          {interviewComplete && posterContent && (
+            <div className="complete-banner saved">
+              <CheckCircle size={40} color="#10b981" />
+              <div>
+                <h3>All Responses Saved</h3>
+                <p>Scroll down to view your spotlight content and download your poster!</p>
               </div>
             </div>
           )}
@@ -457,6 +468,15 @@ const PublicInterview = () => {
                   {copiedField === 'all' ? <Check size={20} /> : <Copy size={20} />}
                   {copiedField === 'all' ? 'All Content Copied!' : 'Copy All Content'}
                 </button>
+              </div>
+
+              {/* Download Poster Button */}
+              <div className="save-section">
+                <div className="save-notice">
+                  <CheckCircle size={20} color="#10b981" />
+                  <span>Your interview has been saved successfully</span>
+                </div>
+                <p className="save-hint">Your responses are now stored and can be viewed by the HR team. Thank you for sharing your Whale Cloud journey!</p>
               </div>
             </div>
           ) : null}
