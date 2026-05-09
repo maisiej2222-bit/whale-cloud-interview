@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle, Copy, Check, Upload, Image } from 'lucide-react';
+import { Send, CheckCircle, Copy, Check, Upload, Image, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import './PublicInterview.css';
 
@@ -254,6 +254,17 @@ const PublicInterview = () => {
             <h2>💬 Interview Session</h2>
             <p>Share your Whale Cloud experience with us</p>
           </div>
+          {!interviewComplete && messages.length > 0 && (
+            <button
+              onClick={startNewInterview}
+              className="restart-btn"
+              title="Restart interview"
+              type="button"
+            >
+              <RotateCcw size={18} />
+              <span>Restart</span>
+            </button>
+          )}
         </div>
 
         <div className="messages-area">
