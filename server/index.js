@@ -228,7 +228,121 @@ app.post('/api/interview/chat', async (req, res) => {
 
     const currentQuestion = INTERVIEW_QUESTIONS[interview.currentQuestionIndex];
 
-    // Detect if user is trying to correct/undo their answer
+    // --- Auto-validate answer ---
+    function validateAnswer(field, text) {
+      if (!field || field === 'photoReminder' || field === 'complete') return null;
+
+      const t = (text || '').trim();
+      if (!t) return "That seems empty — could you type something? I'd love to hear your answer! ✨";
+
+      const len = t.length;
+
+      // Universal sanity checks
+      if (len <= 2 && field !== 'name' && field !== 'companyId') {
+        return `That was quite brief — "${t}" (${len} chars). Could you elaborate just a little more? Even a short sentence would be great! 🙏`;
+      }
+
+      // Random gibberish check
+      if (/^(asdf|qwer|zxcv|test|1234|aaaa|hhhh|hhhh|hmm+|idk|n\/a|none|nothing|\.+)$/i.test(t)) {
+        return "That doesn't look like a real answer — no rush, take your time and type what comes to mind! 💭";
+      }
+
+      // Name validation
+      if (field === 'name') {
+        if (len < 2) return "Your name seems a bit short — could you type your full name? 😊";
+        if (len > 120) return "That seems quite long for a name — maybe just your first and last name? 🙂";
+        if (/^\d+$/.test(t)) return "That looks like a number! Please type your full name instead. 😄";
+        if (/^[!@#$%^&*(),.?":{}|<>]+$/.test(t)) return "That looks like symbols — please type your name! 😊";
+        if (/photo|upload|image|camera|📸/i.test(t) && len < 15) {
+          return "That doesn't look like a name — please type your full name to continue! 😊";
+        }
+      }
+
+      // Company ID validation
+      if (field === 'companyId') {
+        if (len < 2) return "Your employee ID seems too short — could you double-check and re-enter it? 🔍";
+        if (len > 30) return "That seems quite long for an employee ID — could you re-enter? 🙂";
+      }
+
+      // Join time validation
+      if (field === 'joinTime') {
+        if (len < 4) return "That seems too brief for a date — could you include a month and year? (e.g. January 2022) 📅";
+        if (len > 60) return "That's quite detailed for a join date — just a month and year is perfect! (e.g. Q3 2021) 📅";
+        if (!/(\d{4}|20\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|q[1-4]|spring|summer|fall|winter|autumn)/i.test(t)) {
+          return "Hmm, I didn't catch a year or month in there! Could you include when you joined? (e.g. January 2022, or Q3 2021) 📅";
+        }
+      }
+
+      // Team validation
+      if (field === 'team') {
+        if (len < 3) return "Team name seems quite short — could you type the full department name? 🏢";
+        if (len > 100) return "That's quite a long team description! Just the department name is enough. 🙂";
+      }
+
+      // Position validation
+      if (field === 'position') {
+        if (len < 3) return "That position title seems too short — could you type your full job title? 💼";
+        if (len > 80) return "That's quite long for a job title — just the position name is fine! 🙂";
+      }
+
+      // Current role - encourage detail
+      if (field === 'currentRole' && len < 20) {
+        return `Thanks! Could you add just a bit more detail about what you do day-to-day? Even 2-3 sentences about a typical week would be wonderful! 💼`;
+      }
+
+      // Motto - accept anything reasonable
+      // Achievement - encourage detail
+      if (field === 'achievement' && len < 30) {
+        return `That's a start! But I'd love to hear more detail — what was the challenge, your approach, and the impact? Take your time! 🏆`;
+      }
+
+      // Projects - encourage listing
+      if (field === 'projects' && len < 20) {
+        return `Could you name 2-3 specific projects? Even brief descriptions of each would be great! 🚀`;
+      }
+
+      // Contributions
+      if (field === 'contributions' && len < 20) {
+        return `Could you share a bit more detail about that critical situation? What happened and how did you help? 💪`;
+      }
+
+      // Culture - encourage reflection
+      if (field === 'culture' && len < 20) {
+        return `I'd love to hear more! What specifically makes Whale Cloud's culture unique in your view? 🌟`;
+      }
+
+      // Cross cultural
+      if (field === 'crossCultural' && len < 20) {
+        return `Could you share a bit more about that cross-cultural experience? The challenges and how you navigated them? 🌍`;
+      }
+
+      // AI usage
+      if (field === 'aiUsage' && len < 20) {
+        return `Could you name specific AI tools and how you use them? Even a quick list would be helpful! 🤖`;
+      }
+
+      // AI perspective
+      if (field === 'aiPerspective' && len < 20) {
+        return `I'd love to hear more of your perspective! How has AI changed your workflow specifically? ⚡`;
+      }
+
+      // Lessons
+      if (field === 'lessons' && len < 20) {
+        return `Could you list 2-3 specific lessons? Even brief ones are valuable! 📚`;
+      }
+
+      // Advice
+      if (field === 'advice' && len < 20) {
+        return `Any specific advice you'd give to a new team member on their first day? 💡`;
+      }
+
+      // Open ended - very permissive
+      if (field === 'openEnded') return null;
+
+      return null; // Passes validation
+    }
+
+    // Detect if user is trying to correct/undo their answer (MUST run before validation)
     const correctionPatterns = [
       /^(wait|no|oops|sorry|actually|hold on|hang on)[\s,!.]/i,
       /^(i\s+meant?|let\s+me\s+(correct|change|fix|redo|retry|edit))[\s,!.]/i,
@@ -307,6 +421,22 @@ app.post('/api/interview/chat', async (req, res) => {
         isComplete: false,
         interviewId,
         isCorrection: true
+      });
+    }
+
+    // Validate answer (only runs if not a correction attempt)
+    const validationError = validateAnswer(currentQuestion?.field, message);
+    if (validationError) {
+      // Re-ask the same question with a gentle hint
+      const reaskResponse = `${validationError}\n\nLet's try again:\n\n${currentQuestion?.question}`;
+      interview.messages.push({ role: 'assistant', content: reaskResponse });
+      activeInterviews.set(interviewId, interview);
+
+      return res.json({
+        message: reaskResponse,
+        isComplete: false,
+        interviewId,
+        isReask: true
       });
     }
 
