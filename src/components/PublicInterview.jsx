@@ -116,9 +116,9 @@ const PublicInterview = () => {
 
       if (response.data.isComplete) {
         setInterviewComplete(true);
-        // Auto-generate poster immediately
-        if (response.data.autoGeneratePoster) {
-          generatePoster(response.data.interviewId);
+        // Use posterContent directly from response
+        if (response.data.posterContent) {
+          setPosterContent(response.data.posterContent);
         }
       }
     } catch (error) {
@@ -203,9 +203,9 @@ const PublicInterview = () => {
 
           if (response.data.isComplete) {
             setInterviewComplete(true);
-            // Auto-generate poster immediately
-            if (response.data.autoGeneratePoster) {
-              generatePoster(response.data.interviewId);
+            // Use posterContent directly from response
+            if (response.data.posterContent) {
+              setPosterContent(response.data.posterContent);
             }
           }
         } catch (error) {

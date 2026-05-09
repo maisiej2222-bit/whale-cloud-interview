@@ -6,7 +6,9 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 
+const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -27,9 +29,38 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' })); // 支持照片上传
+app.use(express.json({ limit: '10mb' }));
 
-// Data storage directory
+// PostgreSQL database pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Initialize database table
+async function initDatabase() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS interviews (
+        id VARCHAR(255) PRIMARY KEY,
+        data JSONB NOT NULL,
+        name VARCHAR(255),
+        company_id VARCHAR(255),
+        position VARCHAR(255),
+        team VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('✅ Database initialized');
+  } catch (error) {
+    console.error('⚠️ Database init error:', error.message);
+  }
+}
+
+initDatabase();
+
+// Data storage directory (backup)
 const DATA_DIR = path.join(__dirname, '../data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -38,7 +69,6 @@ if (!fs.existsSync(DATA_DIR)) {
 // In-memory storage for active interviews
 const activeInterviews = new Map();
 
-// 预设问题列表 - Maisie2 优化版
 const INTERVIEW_QUESTIONS = [
   {
     id: 0,
@@ -138,6 +168,42 @@ const INTERVIEW_QUESTIONS = [
   }
 ];
 
+// Save interview to database (with file backup)
+async function saveInterview(interview) {
+  const dataToSave = {
+    ...interview,
+    timestamp: interview.createdAt,
+    name: interview.answers.name || 'Anonymous',
+    companyId: interview.answers.companyId || 'N/A',
+    joinTime: interview.answers.joinTime || 'N/A',
+    team: interview.answers.team || 'N/A',
+    position: interview.answers.position || 'N/A',
+    currentRole: interview.answers.currentRole || 'N/A'
+  };
+
+  // Save to PostgreSQL
+  try {
+    await pool.query(
+      `INSERT INTO interviews (id, data, name, company_id, position, team, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         data = $2, name = $3, company_id = $4, position = $5, team = $6, updated_at = NOW()`,
+      [interview.id, JSON.stringify(dataToSave), dataToSave.name, dataToSave.companyId, dataToSave.position, dataToSave.team]
+    );
+    console.log(`✅ DB saved: ${dataToSave.name}`);
+  } catch (dbError) {
+    console.error('❌ DB save error:', dbError.message);
+  }
+
+  // File backup
+  try {
+    const filePath = path.join(DATA_DIR, `${interview.id}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
+  } catch (fileError) {
+    console.error('❌ File save error:', fileError.message);
+  }
+}
+
 // Start new interview
 app.post('/api/interview/start', async (req, res) => {
   try {
@@ -146,19 +212,14 @@ app.post('/api/interview/start', async (req, res) => {
 
     activeInterviews.set(interviewId, {
       id: interviewId,
-      messages: [
-        { role: 'assistant', content: firstQuestion.question }
-      ],
+      messages: [{ role: 'assistant', content: firstQuestion.question }],
       currentQuestionIndex: 0,
       answers: {},
       createdAt: new Date().toISOString(),
       isPublic: true
     });
 
-    res.json({
-      interviewId,
-      message: firstQuestion.question
-    });
+    res.json({ interviewId, message: firstQuestion.question });
   } catch (error) {
     console.error('Error starting interview:', error);
     res.status(500).json({ error: 'Failed to start interview' });
@@ -179,24 +240,19 @@ app.post('/api/interview/chat', async (req, res) => {
       isPublic: true
     };
 
-    // Save profile photo if provided
     if (profilePhoto && !interview.profilePhoto) {
       interview.profilePhoto = profilePhoto;
     }
 
-    // Add user message
     interview.messages.push({ role: 'user', content: message });
 
-    // Save answer
     const currentQuestion = INTERVIEW_QUESTIONS[interview.currentQuestionIndex];
     if (currentQuestion && currentQuestion.field !== 'photoReminder' && currentQuestion.field !== 'complete') {
       interview.answers[currentQuestion.field] = message;
     }
 
-    // Move to next question
     interview.currentQuestionIndex++;
 
-    // Check if interview is complete or reaching the final message
     const nextQuestion = INTERVIEW_QUESTIONS[interview.currentQuestionIndex];
     const isComplete = interview.currentQuestionIndex >= INTERVIEW_QUESTIONS.length ||
                        (nextQuestion && nextQuestion.field === 'complete');
@@ -209,17 +265,20 @@ app.post('/api/interview/chat', async (req, res) => {
         aiMessage = "Thank you so much for sharing your story! 🎉 Your interview is complete. We're generating your spotlight content now...";
       }
 
-      // Add final message first
       interview.messages.push({ role: 'assistant', content: aiMessage });
       activeInterviews.set(interviewId, interview);
 
-      // Save interview with all messages
-      saveInterview(interview);
+      // Auto-generate poster
+      const posterContent = generatePosterContent(interview);
+      interview.posterContent = posterContent;
+
+      await saveInterview(interview);
 
       res.json({
         message: aiMessage,
         isComplete: true,
         interviewId,
+        posterContent,
         autoGeneratePoster: true
       });
     } else {
@@ -227,11 +286,7 @@ app.post('/api/interview/chat', async (req, res) => {
       interview.messages.push({ role: 'assistant', content: aiMessage });
       activeInterviews.set(interviewId, interview);
 
-      res.json({
-        message: aiMessage,
-        isComplete: false,
-        interviewId
-      });
+      res.json({ message: aiMessage, isComplete: false, interviewId });
     }
   } catch (error) {
     console.error('Error in chat:', error);
@@ -239,17 +294,39 @@ app.post('/api/interview/chat', async (req, res) => {
   }
 });
 
-// Generate poster content (simplified without AI)
+function generatePosterContent(interview) {
+  const a = interview.answers;
+  return {
+    title: `${a.name || 'Employee'} - ${a.position || 'Team Member'}`,
+    motto: a.motto || 'Dedicated to excellence',
+    introduction: `${a.name} joined Whale Cloud in ${a.joinTime}, working as ${a.position} in the ${a.team} team. ${a.currentRole || ''}`,
+    achievement: a.achievement || 'Making valuable contributions to the team',
+    qa_session: [
+      { question: "What are your main projects?", answer: a.projects || 'Various important projects' },
+      { question: "How do you use AI in your work?", answer: a.aiUsage || 'Leveraging AI tools for efficiency' },
+      { question: "What advice would you give to teammates?", answer: a.advice || 'Stay curious and keep learning' }
+    ],
+    ai_insight: `${a.name} brings valuable experience in ${a.position}, contributing to ${a.team} with dedication and professionalism. Their perspective on ${a.culture || 'company culture'} and commitment to ${a.lessons || 'continuous learning'} make them an asset to Whale Cloud.`
+  };
+}
+
+// Generate poster content endpoint (for existing interviews)
 app.post('/api/interview/generate-poster', async (req, res) => {
   try {
     const { interviewId } = req.body;
 
     let interview = activeInterviews.get(interviewId);
     if (!interview) {
-      // Try to load from file
-      const filePath = path.join(DATA_DIR, `${interviewId}.json`);
-      if (fs.existsSync(filePath)) {
-        interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      try {
+        const result = await pool.query('SELECT data FROM interviews WHERE id = $1', [interviewId]);
+        if (result.rows.length > 0) {
+          interview = JSON.parse(result.rows[0].data);
+        }
+      } catch (dbError) {
+        const filePath = path.join(DATA_DIR, `${interviewId}.json`);
+        if (fs.existsSync(filePath)) {
+          interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        }
       }
     }
 
@@ -257,32 +334,9 @@ app.post('/api/interview/generate-poster', async (req, res) => {
       return res.status(404).json({ error: 'Interview not found' });
     }
 
-    // Generate simple poster content from answers
-    const posterContent = {
-      title: `${interview.answers.name || 'Employee'} - ${interview.answers.position || 'Team Member'}`,
-      motto: interview.answers.motto || 'Dedicated to excellence',
-      introduction: `${interview.answers.name} joined Whale Cloud in ${interview.answers.joinTime}, working as ${interview.answers.position} in the ${interview.answers.team} team. ${interview.answers.currentRole || ''}`,
-      achievement: interview.answers.achievement || 'Making valuable contributions to the team',
-      qa_session: [
-        {
-          question: "What are your main projects?",
-          answer: interview.answers.projects || 'Various important projects'
-        },
-        {
-          question: "How do you use AI in your work?",
-          answer: interview.answers.aiUsage || 'Leveraging AI tools for efficiency'
-        },
-        {
-          question: "What advice would you give to teammates?",
-          answer: interview.answers.advice || 'Stay curious and keep learning'
-        }
-      ],
-      ai_insight: `${interview.answers.name} brings valuable experience in ${interview.answers.position}, contributing to ${interview.answers.team} with dedication and professionalism. Their perspective on ${interview.answers.culture || 'company culture'} and commitment to ${interview.answers.lessons || 'continuous learning'} make them an asset to Whale Cloud.`
-    };
-
-    // Save poster content
+    const posterContent = generatePosterContent(interview);
     interview.posterContent = posterContent;
-    saveInterview(interview);
+    await saveInterview(interview);
 
     res.json({ posterContent });
   } catch (error) {
@@ -290,27 +344,6 @@ app.post('/api/interview/generate-poster', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate poster' });
   }
 });
-
-// Save interview to file
-function saveInterview(interview) {
-  try {
-    const filePath = path.join(DATA_DIR, `${interview.id}.json`);
-    const dataToSave = {
-      ...interview,
-      timestamp: interview.createdAt,
-      name: interview.answers.name || 'Anonymous',
-      companyId: interview.answers.companyId || 'N/A',
-      joinTime: interview.answers.joinTime || 'N/A',
-      team: interview.answers.team || 'N/A',
-      position: interview.answers.position || 'N/A',
-      currentRole: interview.answers.currentRole || 'N/A'
-    };
-    fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
-    console.log(`✅ Interview saved: ${interview.id} - ${interview.answers.name || 'Anonymous'}`);
-  } catch (error) {
-    console.error('❌ Error saving interview:', error);
-  }
-}
 
 // Admin authentication middleware
 const authenticateAdmin = (req, res, next) => {
@@ -331,19 +364,27 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
-// Get all interviews (admin only)
-app.get('/api/admin/interviews', authenticateAdmin, (req, res) => {
+// Get all interviews (admin only) - Primary: database, Fallback: file
+app.get('/api/admin/interviews', authenticateAdmin, async (req, res) => {
   try {
+    try {
+      const result = await pool.query(
+        'SELECT id, name, position, team, created_at as timestamp FROM interviews ORDER BY created_at DESC'
+      );
+      return res.json({
+        interviews: result.rows.map(r => ({
+          id: r.id, name: r.name || 'Anonymous', position: r.position, team: r.team, timestamp: r.timestamp
+        }))
+      });
+    } catch (dbError) {
+      console.error('DB query error:', dbError.message);
+    }
+
+    // Fallback to file
     const files = fs.readdirSync(DATA_DIR).filter(f => f.endsWith('.json'));
     const interviews = files.map(file => {
       const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, file), 'utf-8'));
-      return {
-        id: data.id,
-        name: data.name || 'Anonymous',
-        position: data.position,
-        team: data.team,
-        timestamp: data.timestamp || data.createdAt
-      };
+      return { id: data.id, name: data.name || 'Anonymous', position: data.position, team: data.team, timestamp: data.timestamp || data.createdAt };
     }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
     res.json({ interviews });
@@ -354,15 +395,23 @@ app.get('/api/admin/interviews', authenticateAdmin, (req, res) => {
 });
 
 // Get interview by ID (admin only)
-app.get('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
+app.get('/api/admin/interviews/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const filePath = path.join(DATA_DIR, `${id}.json`);
 
+    try {
+      const result = await pool.query('SELECT data FROM interviews WHERE id = $1', [id]);
+      if (result.rows.length > 0) {
+        return res.json({ interview: JSON.parse(result.rows[0].data) });
+      }
+    } catch (dbError) {
+      console.error('DB query error:', dbError.message);
+    }
+
+    const filePath = path.join(DATA_DIR, `${id}.json`);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Interview not found' });
     }
-
     const interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     res.json({ interview });
   } catch (error) {
@@ -375,118 +424,73 @@ app.get('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
 app.get('/api/admin/interviews/:id/download', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const filePath = path.join(DATA_DIR, `${id}.json`);
 
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Interview not found' });
+    let interview;
+    try {
+      const result = await pool.query('SELECT data FROM interviews WHERE id = $1', [id]);
+      if (result.rows.length > 0) {
+        interview = JSON.parse(result.rows[0].data);
+      }
+    } catch (dbError) {
+      // fall through
     }
 
-    const interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    const poster = interview.posterContent;
+    if (!interview) {
+      const filePath = path.join(DATA_DIR, `${id}.json`);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Interview not found' });
+      }
+      interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    }
 
+    const poster = interview.posterContent;
     if (!poster) {
       return res.status(404).json({ error: 'Poster content not found' });
     }
 
-    // Create Word document
     const children = [];
 
-    // Title
-    children.push(
-      new Paragraph({
-        text: poster.title,
-        heading: HeadingLevel.HEADING_1,
-        spacing: { after: 200 }
-      })
-    );
+    children.push(new Paragraph({
+      text: poster.title, heading: HeadingLevel.HEADING_1, spacing: { after: 200 }
+    }));
 
-    // Motto
     if (poster.motto) {
-      children.push(
-        new Paragraph({
-          text: `"${poster.motto}"`,
-          heading: HeadingLevel.HEADING_2,
-          spacing: { after: 300 },
-          italics: true
-        })
-      );
+      children.push(new Paragraph({
+        text: `"${poster.motto}"`, heading: HeadingLevel.HEADING_2, spacing: { after: 300 }, italics: true
+      }));
     }
 
-    // Introduction
     children.push(
-      new Paragraph({
-        text: 'Introduction',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 300, after: 200 }
-      }),
-      new Paragraph({
-        text: poster.introduction,
-        spacing: { after: 400 }
-      })
+      new Paragraph({ text: 'Introduction', heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 200 } }),
+      new Paragraph({ text: poster.introduction, spacing: { after: 400 } }),
+      new Paragraph({ text: 'Achievement', heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 200 } }),
+      new Paragraph({ text: poster.achievement, spacing: { after: 400 } })
     );
 
-    // Achievement
-    children.push(
-      new Paragraph({
-        text: 'Achievement',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 300, after: 200 }
-      }),
-      new Paragraph({
-        text: poster.achievement,
-        spacing: { after: 400 }
-      })
-    );
-
-    // Q&A Session
     if (poster.qa_session && poster.qa_session.length > 0) {
-      children.push(
-        new Paragraph({
-          text: 'Q&A Session',
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 300, after: 200 }
-        })
-      );
-
-      poster.qa_session.forEach((qa, index) => {
+      children.push(new Paragraph({
+        text: 'Q&A Session', heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 200 }
+      }));
+      poster.qa_session.forEach((qa, i) => {
         children.push(
-          new Paragraph({
-            text: `Q${index + 1}: ${qa.question}`,
-            spacing: { before: 200, after: 100 },
-            bold: true
-          }),
-          new Paragraph({
-            text: `A${index + 1}: ${qa.answer}`,
-            spacing: { after: 200 }
-          })
+          new Paragraph({ text: `Q${i + 1}: ${qa.question}`, spacing: { before: 200, after: 100 }, bold: true }),
+          new Paragraph({ text: `A${i + 1}: ${qa.answer}`, spacing: { after: 200 } })
         );
       });
     }
 
-    // AI Insight
     if (poster.ai_insight) {
       children.push(
-        new Paragraph({
-          text: 'AI Insight',
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 300, after: 200 }
-        }),
-        new Paragraph({
-          text: poster.ai_insight,
-          spacing: { after: 400 }
-        })
+        new Paragraph({ text: 'AI Insight', heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 200 } }),
+        new Paragraph({ text: poster.ai_insight, spacing: { after: 400 } })
       );
     }
 
     const doc = new Document({
-      sections: [{
-        properties: {},
-        children: children
-      }]
+      sections: [{ properties: {}, children }]
     });
 
     const buffer = await Packer.toBuffer(doc);
-
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="interview-${id}.docx"`);
     res.send(buffer);
@@ -497,17 +501,22 @@ app.get('/api/admin/interviews/:id/download', authenticateAdmin, async (req, res
 });
 
 // Delete interview (admin only)
-app.delete('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
+app.delete('/api/admin/interviews/:id', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const filePath = path.join(DATA_DIR, `${id}.json`);
 
+    try {
+      await pool.query('DELETE FROM interviews WHERE id = $1', [id]);
+    } catch (dbError) {
+      // fall through
+    }
+
+    const filePath = path.join(DATA_DIR, `${id}.json`);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
-      res.json({ message: 'Interview deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'Interview not found' });
     }
+
+    res.json({ message: 'Interview deleted successfully' });
   } catch (error) {
     console.error('Error deleting interview:', error);
     res.status(500).json({ error: 'Failed to delete interview' });
@@ -520,7 +529,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     mode: 'questionnaire',
-    system: 'Whale Cloud Interview Platform'
+    system: 'Whale Cloud Interview Platform',
+    dbConfigured: !!process.env.DATABASE_URL
   });
 });
 
@@ -528,8 +538,6 @@ app.get('/api/health', (req, res) => {
 if (NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../dist');
   app.use(express.static(distPath));
-
-  // All other routes return the index.html for client-side routing
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
@@ -538,17 +546,10 @@ if (NODE_ENV === 'production') {
 app.listen(PORT, () => {
   console.log(`\n🐋 Whale Cloud Interview Platform`);
   console.log(`📍 Server: http://localhost:${PORT}`);
-  console.log(`📋 Mode: Questionnaire (No AI required)`);
+  console.log(`📋 Mode: Questionnaire`);
+  console.log(`🗄️  DB: ${process.env.DATABASE_URL ? 'PostgreSQL configured' : 'File storage only'}`);
   console.log(`\n📊 Endpoints:`);
-  console.log(`   Public:`);
-  console.log(`   - POST /api/interview/start`);
-  console.log(`   - POST /api/interview/chat`);
-  console.log(`   - POST /api/interview/generate-poster`);
-  console.log(`\n   Admin:`);
-  console.log(`   - POST /api/admin/login`);
-  console.log(`   - GET  /api/admin/interviews`);
-  console.log(`   - GET  /api/admin/interviews/:id`);
-  console.log(`   - GET  /api/admin/interviews/:id/download`);
-  console.log(`   - DELETE /api/admin/interviews/:id`);
+  console.log(`   Public: POST /api/interview/start, chat, generate-poster`);
+  console.log(`   Admin:  POST /api/admin/login, GET /api/admin/interviews`);
   console.log(``);
 });
