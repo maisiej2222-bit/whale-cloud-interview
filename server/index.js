@@ -344,8 +344,8 @@ app.post('/api/interview/chat', async (req, res) => {
 
     // Detect if user is trying to correct/undo their answer (MUST run before validation)
     const correctionPatterns = [
-      /^(wait|no|oops|sorry|actually|hold on|hang on)[\s,!.]/i,
-      /^(i\s+meant?|let\s+me\s+(correct|change|fix|redo|retry|edit))[\s,!.]/i,
+      /^(wait|no|oops|sorry|actually|hold on|hang on)([\s,!.]|$)/i,
+      /^(i\s+meant?|let\s+me\s+(correct|change|fix|redo|retry|edit))([\s,!.]|$)/i,
       /^(change|edit|correct|fix|undo|redo|revise)\s+(my\s+)?(answer|that|this|it)/i,
       /^(that'?s?\s+wrong|typo|mistake|mis-?type)/i,
       /^(can\s+(i|you)\s+(go\s+back|undo|delete|remove|change|edit|fix|correct))/i,
