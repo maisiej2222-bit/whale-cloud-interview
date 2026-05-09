@@ -111,8 +111,15 @@ const PublicInterview = () => {
         currentIndex
       });
 
-      const newIndex = currentIndex + 1;
-      setCurrentIndex(newIndex);
+      // Don't advance index if it was a correction
+      let newIndex = currentIndex;
+      if (response.data.backToQuestion !== undefined) {
+        newIndex = response.data.backToQuestion;
+        setCurrentIndex(newIndex);
+      } else if (!response.data.isCorrection) {
+        newIndex = currentIndex + 1;
+        setCurrentIndex(newIndex);
+      }
 
       const assistantMessage = {
         role: 'assistant',
