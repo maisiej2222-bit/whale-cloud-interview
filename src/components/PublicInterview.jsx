@@ -14,6 +14,7 @@ const PublicInterview = () => {
   const [copiedField, setCopiedField] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -26,6 +27,7 @@ const PublicInterview = () => {
         setMessages(session.messages || []);
         setInterviewId(session.interviewId);
         setInterviewComplete(session.interviewComplete || false);
+        setCurrentIndex(session.currentIndex || 0);
         setProfilePhoto(session.profilePhoto);
         setPhotoPreview(session.profilePhoto);
         if (session.posterContent) {
@@ -52,7 +54,8 @@ const PublicInterview = () => {
         messages,
         interviewComplete,
         profilePhoto,
-        posterContent
+        posterContent,
+        currentIndex
       };
       localStorage.setItem('whale_interview_session', JSON.stringify(session));
     }
@@ -104,8 +107,12 @@ const PublicInterview = () => {
       const response = await axios.post('/api/interview/chat', {
         interviewId,
         message: input,
-        profilePhoto: profilePhoto
+        profilePhoto: profilePhoto,
+        currentIndex
       });
+
+      const newIndex = currentIndex + 1;
+      setCurrentIndex(newIndex);
 
       const assistantMessage = {
         role: 'assistant',

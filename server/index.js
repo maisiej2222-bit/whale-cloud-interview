@@ -172,16 +172,37 @@ app.post('/api/interview/start', async (req, res) => {
 // Continue interview chat
 app.post('/api/interview/chat', async (req, res) => {
   try {
-    const { interviewId, message, profilePhoto } = req.body;
+    const { interviewId, message, profilePhoto, currentIndex } = req.body;
 
-    const interview = activeInterviews.get(interviewId) || {
-      id: interviewId,
-      messages: [],
-      currentQuestionIndex: 0,
-      answers: {},
-      createdAt: new Date().toISOString(),
-      isPublic: true
-    };
+    // Try to recover from memory or create new
+    let interview = activeInterviews.get(interviewId);
+
+    // If not in memory, try file recovery
+    if (!interview) {
+      const filePath = path.join(DATA_DIR, `${interviewId}.json`);
+      if (fs.existsSync(filePath)) {
+        try {
+          const saved = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          interview = { ...saved, currentQuestionIndex: saved.currentQuestionIndex || 0 };
+          console.log(`📂 Recovered from file: ${interviewId}`);
+        } catch (e) { /* file corrupted, start fresh */ }
+      }
+    }
+
+    // If still not found, use client-provided index to recover position
+    if (!interview) {
+      interview = {
+        id: interviewId,
+        messages: [],
+        currentQuestionIndex: currentIndex || 0,
+        answers: {},
+        createdAt: new Date().toISOString(),
+        isPublic: true
+      };
+    } else if (currentIndex !== undefined && currentIndex > interview.currentQuestionIndex) {
+      // Client knows better position (e.g. after server restart)
+      interview.currentQuestionIndex = currentIndex;
+    }
 
     // Save profile photo as file if provided
     if (profilePhoto && !interview.profilePhoto) {
