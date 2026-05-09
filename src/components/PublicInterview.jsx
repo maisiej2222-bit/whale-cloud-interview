@@ -254,7 +254,7 @@ const PublicInterview = () => {
             <h2>💬 Interview Session</h2>
             <p>Share your Whale Cloud experience with us</p>
           </div>
-          {!interviewComplete && messages.length > 0 && (
+          {!interviewComplete && (
             <button
               onClick={startNewInterview}
               className="restart-btn"
