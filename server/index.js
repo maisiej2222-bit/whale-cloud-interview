@@ -226,8 +226,91 @@ app.post('/api/interview/chat', async (req, res) => {
     // Add user message
     interview.messages.push({ role: 'user', content: message });
 
-    // Save answer
     const currentQuestion = INTERVIEW_QUESTIONS[interview.currentQuestionIndex];
+
+    // Detect if user is trying to correct/undo their answer
+    const correctionPatterns = [
+      /^(wait|no|oops|sorry|actually|hold on|hang on)[\s,!.]/i,
+      /^(i\s+meant?|let\s+me\s+(correct|change|fix|redo|retry|edit))[\s,!.]/i,
+      /^(change|edit|correct|fix|undo|redo|revise)\s+(my\s+)?(answer|that|this|it)/i,
+      /^(that'?s?\s+wrong|typo|mistake|mis-?type)/i,
+      /^(can\s+(i|you)\s+(go\s+back|undo|delete|remove|change|edit|fix|correct))/i,
+      /^(go\s+back|undo|revert|back\s+up|previous)/i,
+    ];
+
+    // Also detect "change my [field]" patterns to go back to specific question
+    const fieldCorrectionPattern = /^(?:change|correct|edit|fix|redo|re-?do)\s+(?:my\s+)?(.+)$/i;
+    const fieldMatch = message.match(fieldCorrectionPattern);
+    let targetField = null;
+
+    if (fieldMatch) {
+      const fieldHint = fieldMatch[1].toLowerCase().replace(/\s+/g, '');
+      const fieldMap = {
+        'name': 'name', 'myname': 'name', 'fullname': 'name',
+        'id': 'companyId', 'companyid': 'companyId', 'employeenumber': 'companyId', 'employeeno': 'companyId',
+        'jointime': 'joinTime', 'startdate': 'joinTime', 'date': 'joinTime',
+        'team': 'team', 'department': 'team', 'dept': 'team',
+        'position': 'position', 'role': 'position', 'jobtitle': 'position', 'title': 'position',
+        'currentrole': 'currentRole', 'description': 'currentRole',
+        'motto': 'motto', 'guidingprinciple': 'motto',
+        'projects': 'projects', 'project': 'projects',
+        'achievement': 'achievement', 'accomplishment': 'achievement', 'proudestmoment': 'achievement',
+        'contributions': 'contributions', 'contribution': 'contributions',
+        'culture': 'culture', 'companyculture': 'culture',
+        'crosscultural': 'crossCultural', 'crossculture': 'crossCultural',
+        'aiusage': 'aiUsage', 'aitools': 'aiUsage', 'ai': 'aiUsage',
+        'aiperspective': 'aiPerspective', 'aiview': 'aiPerspective',
+        'lessons': 'lessons', 'lesson': 'lessons',
+        'advice': 'advice', 'suggestion': 'advice',
+        'openended': 'openEnded', 'other': 'openEnded',
+        'photo': 'photoReminder', 'profilephoto': 'photoReminder', 'picture': 'photoReminder',
+      };
+      targetField = fieldMap[fieldHint] || null;
+
+      // If they want to correct a specific field, go back to that question
+      if (targetField) {
+        const targetIndex = INTERVIEW_QUESTIONS.findIndex(q => q.field === targetField);
+        if (targetIndex >= 0 && targetIndex <= interview.currentQuestionIndex) {
+          interview.currentQuestionIndex = targetIndex;
+          const targetQ = INTERVIEW_QUESTIONS[targetIndex];
+          const goBackResponse = `Got it! Let's fix your "${fieldMatch[1].trim()}" answer. ✏️\n\n${targetQ.question}`;
+
+          interview.messages.push({ role: 'assistant', content: goBackResponse });
+          activeInterviews.set(interviewId, interview);
+
+          return res.json({
+            message: goBackResponse,
+            isComplete: false,
+            interviewId,
+            isCorrection: true,
+            backToQuestion: targetIndex
+          });
+        }
+      }
+    }
+
+    const isCorrection = correctionPatterns.some(p => p.test(message.trim()));
+
+    if (isCorrection) {
+      // Don't advance — allow user to re-answer current question
+      const correctionResponse = [
+        `No worries! 😊 Let me give you a chance to correct that.\n\nPlease re-enter your answer for the current question:\n\n_${currentQuestion?.question}_`,
+        `Oops, let's fix that! 🔄 No problem at all.\n\nGo ahead and type your corrected answer:\n\n_${currentQuestion?.question}_`,
+        `Sure thing! Let's redo this one. ✏️\n\nPlease type your updated answer here:\n\n_${currentQuestion?.question}_`,
+      ][Math.floor(Math.random() * 3)];
+
+      interview.messages.push({ role: 'assistant', content: correctionResponse });
+      activeInterviews.set(interviewId, interview);
+
+      return res.json({
+        message: correctionResponse,
+        isComplete: false,
+        interviewId,
+        isCorrection: true
+      });
+    }
+
+    // Save answer (only if not a correction)
     if (currentQuestion && currentQuestion.field !== 'photoReminder' && currentQuestion.field !== 'complete') {
       interview.answers[currentQuestion.field] = message;
     }
