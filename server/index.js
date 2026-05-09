@@ -29,10 +29,14 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // 支持照片上传
 
-// Data storage directory
+// Data storage directories
 const DATA_DIR = path.join(__dirname, '../data');
+const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(PHOTOS_DIR)) {
+  fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 }
 
 // In-memory storage for active interviews
@@ -179,9 +183,23 @@ app.post('/api/interview/chat', async (req, res) => {
       isPublic: true
     };
 
-    // Save profile photo if provided
+    // Save profile photo as file if provided
     if (profilePhoto && !interview.profilePhoto) {
-      interview.profilePhoto = profilePhoto;
+      try {
+        // Extract base64 data
+        const matches = profilePhoto.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+        if (matches) {
+          const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          const photoData = matches[2];
+          const photoFilename = `${interviewId}.${ext}`;
+          const photoPath = path.join(PHOTOS_DIR, photoFilename);
+          fs.writeFileSync(photoPath, Buffer.from(photoData, 'base64'));
+          interview.profilePhoto = `/api/photo/${interviewId}`;
+          console.log(`📸 Photo saved: ${photoFilename} (${(photoData.length * 0.75 / 1024).toFixed(1)} KB)`);
+        }
+      } catch (err) {
+        console.error('Error saving photo:', err.message);
+      }
     }
 
     // Add user message
@@ -294,9 +312,15 @@ app.post('/api/interview/generate-poster', async (req, res) => {
 // Save interview to file
 function saveInterview(interview) {
   try {
+    // Strip large base64 photo data from messages to keep JSON small
+    const cleanInterview = { ...interview };
+    if (cleanInterview.profilePhoto && !cleanInterview.profilePhoto.startsWith('/api/photo/')) {
+      delete cleanInterview.profilePhoto;
+    }
+
     const filePath = path.join(DATA_DIR, `${interview.id}.json`);
     const dataToSave = {
-      ...interview,
+      ...cleanInterview,
       timestamp: interview.createdAt,
       name: interview.answers.name || 'Anonymous',
       companyId: interview.answers.companyId || 'N/A',
@@ -306,7 +330,9 @@ function saveInterview(interview) {
       currentRole: interview.answers.currentRole || 'N/A'
     };
     fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
-    console.log(`✅ Interview saved: ${interview.id} - ${interview.answers.name || 'Anonymous'}`);
+
+    const fileSize = (fs.statSync(filePath).size / 1024).toFixed(1);
+    console.log(`✅ Interview saved: ${interview.id} - ${dataToSave.name} (${fileSize} KB)`);
   } catch (error) {
     console.error('❌ Error saving interview:', error);
   }
@@ -500,10 +526,26 @@ app.get('/api/admin/interviews/:id/download', authenticateAdmin, async (req, res
 app.delete('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
   try {
     const { id } = req.params;
-    const filePath = path.join(DATA_DIR, `${id}.json`);
+    let deleted = false;
 
+    // Delete interview JSON
+    const filePath = path.join(DATA_DIR, `${id}.json`);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
+      deleted = true;
+      console.log(`🗑️  Deleted interview: ${id}`);
+    }
+
+    // Delete photo files
+    ['jpg', 'png', 'jpeg'].forEach(ext => {
+      const photoPath = path.join(PHOTOS_DIR, `${id}.${ext}`);
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+        console.log(`🗑️  Deleted photo: ${id}.${ext}`);
+      }
+    });
+
+    if (deleted) {
       res.json({ message: 'Interview deleted successfully' });
     } else {
       res.status(404).json({ error: 'Interview not found' });
@@ -511,6 +553,26 @@ app.delete('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
   } catch (error) {
     console.error('Error deleting interview:', error);
     res.status(500).json({ error: 'Failed to delete interview' });
+  }
+});
+
+// Serve profile photos
+app.get('/api/photo/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    // Check for jpg first, then png
+    let photoPath = path.join(PHOTOS_DIR, `${id}.jpg`);
+    if (!fs.existsSync(photoPath)) {
+      photoPath = path.join(PHOTOS_DIR, `${id}.png`);
+    }
+    if (!fs.existsSync(photoPath)) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+    const ext = path.extname(photoPath).slice(1);
+    res.setHeader('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`);
+    res.sendFile(photoPath);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load photo' });
   }
 });
 
