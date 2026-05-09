@@ -254,17 +254,15 @@ const PublicInterview = () => {
             <h2>💬 Interview Session</h2>
             <p>Share your Whale Cloud experience with us</p>
           </div>
-          {!interviewComplete && (
-            <button
-              onClick={startNewInterview}
-              className="restart-btn"
-              title="Restart interview"
-              type="button"
-            >
-              <RotateCcw size={18} />
-              <span>Restart</span>
-            </button>
-          )}
+          <button
+            onClick={startNewInterview}
+            className="restart-btn"
+            title="Start a new interview"
+            type="button"
+          >
+            <RotateCcw size={18} />
+            <span>Restart</span>
+          </button>
         </div>
 
         <div className="messages-area">
