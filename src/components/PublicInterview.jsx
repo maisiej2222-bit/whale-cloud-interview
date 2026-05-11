@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CheckCircle, Copy, Check, Upload, Image, RotateCcw } from 'lucide-react';
+import { Send, CheckCircle, Copy, Check, Upload, Image, RotateCcw, Download } from 'lucide-react';
 import axios from 'axios';
 import './PublicInterview.css';
 
@@ -375,6 +375,18 @@ const PublicInterview = () => {
                 <div className="content-block photo-block">
                   <div className="block-header">
                     <span className="badge photo-badge">Profile Photo</span>
+                    <button
+                      onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = posterContent.profilePhoto;
+                        a.download = 'profile-photo.jpg';
+                        a.click();
+                      }}
+                      className="copy-btn"
+                    >
+                      <Download size={16} />
+                      Download
+                    </button>
                   </div>
                   <div className="photo-display">
                     <img src={posterContent.profilePhoto} alt="Profile" />

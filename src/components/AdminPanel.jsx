@@ -262,6 +262,22 @@ const AdminPanel = ({ isAuthenticated, onAuthenticate }) => {
                       <div className="profile-photo-display">
                         <img src={selectedInterview.profilePhoto} alt="Profile" />
                       </div>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+                        <button
+                          onClick={() => {
+                            const a = document.createElement('a');
+                            a.href = selectedInterview.profilePhoto;
+                            a.download = `${selectedInterview.name || 'profile'}-photo.jpg`;
+                            a.click();
+                          }}
+                          className="action-btn download"
+                          style={{ width: 'auto', padding: '0 16px', gap: '8px' }}
+                          title="Download Photo"
+                        >
+                          <Download size={16} />
+                          Download Photo
+                        </button>
+                      </div>
                     </div>
                   )}
 

@@ -732,7 +732,8 @@ app.get('/api/admin/interviews', authenticateAdmin, (req, res) => {
         name: data.name || 'Anonymous',
         position: data.position,
         team: data.team,
-        timestamp: data.timestamp || data.createdAt
+        timestamp: data.timestamp || data.createdAt,
+        profilePhoto: data.profilePhoto || data.profilePhotoData || null
       };
     }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
