@@ -189,12 +189,12 @@ app.post('/api/interview/chat', async (req, res) => {
       }
     }
 
-    // If still not found, use client-provided index to recover position
+    // If still not found, start a fresh interview from the beginning
     if (!interview) {
       interview = {
         id: interviewId,
         messages: [],
-        currentQuestionIndex: currentIndex || 0,
+        currentQuestionIndex: 0,
         answers: {},
         createdAt: new Date().toISOString(),
         isPublic: true

@@ -89,6 +89,7 @@ const PublicInterview = () => {
     setGeneratingPoster(false);
     setProfilePhoto(null);
     setPhotoPreview(null);
+    setCurrentIndex(0);
 
     // Start fresh interview
     startInterview();
