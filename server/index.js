@@ -81,59 +81,59 @@ const INTERVIEW_QUESTIONS = [
   },
   {
     id: 7,
-    question: "📸 Now, let's add a face to your amazing story! Please upload a professional profile photo using the upload button (📤) in the chat interface. This will be featured in your spotlight poster!",
-    field: 'photoReminder',
-    requiresPhoto: true
-  },
-  {
-    id: 8,
     question: "Let's talk about your work! What are the main projects or initiatives you're currently leading or contributing to? Please share 2-3 key projects and briefly explain what each one is about. 🚀",
     field: 'projects'
   },
   {
-    id: 9,
+    id: 8,
     question: "I'd love to hear about your proudest moment! 🏆 What's the achievement or project you're most proud of during your time at Whale Cloud? Please share: What was the challenge? What was your approach? What impact did it create?",
     field: 'achievement'
   },
   {
-    id: 10,
+    id: 9,
     question: "Can you share a specific example of a critical situation where your contribution made a real difference? Maybe a time when urgent support was needed, or when you helped solve a major challenge? 💪",
     field: 'contributions'
   },
   {
-    id: 11,
+    id: 10,
     question: "How would you describe Whale Cloud's company culture? What makes it unique in your opinion? What do you appreciate most about working here? 🌟",
     field: 'culture'
   },
   {
-    id: 12,
+    id: 11,
     question: "Working in a global company is such an enriching experience! 🌍 Could you share a specific cross-cultural collaboration story? What challenges did you encounter (communication styles, time zones, cultural differences) and how did you navigate them?",
     field: 'crossCultural'
   },
   {
-    id: 13,
+    id: 12,
     question: "Let's talk about AI! 🤖 How are you currently using AI tools in your daily work? Please give specific examples - which tools, for what tasks, and how often? (For example: ChatGPT for brainstorming, Copilot for coding, AI for data analysis, etc.)",
     field: 'aiUsage'
   },
   {
-    id: 14,
+    id: 13,
     question: "What's your perspective on AI's role in your field? Has it significantly changed how you work? Can you quantify the gains? (For example: 'AI helps me work 30% faster' or 'AI reduced my research time from hours to minutes') ⚡",
     field: 'aiPerspective'
   },
   {
-    id: 15,
+    id: 14,
     question: "Reflecting on your journey at Whale Cloud, what are 2-3 valuable lessons you've learned? These could be professional skills, mindset shifts, or insights about teamwork and communication. 📚",
     field: 'lessons'
   },
   {
-    id: 16,
+    id: 15,
     question: "Based on your experience, what advice would you give to your teammates or new members joining Whale Cloud? If you could go back to your first day, what's one thing you wish you had known? 💡",
     field: 'advice'
   },
   {
-    id: 17,
+    id: 16,
     question: "We're almost done! Is there anything else you'd like to share? Maybe something we didn't cover, a success story, a challenge you overcame, or any suggestions for making Whale Cloud even better? 🌈",
     field: 'openEnded'
+  },
+  {
+    id: 17,
+    question: "📸 One last step! Let's add a face to your amazing story. Please upload a professional profile photo using the upload button (📤) in the chat interface. This will be featured in your spotlight poster!",
+    field: 'photoReminder',
+    requiresPhoto: true
   },
   {
     id: 18,
@@ -551,8 +551,7 @@ app.post('/api/interview/chat', async (req, res) => {
         'team|position': '',
         'position|currentRole': "I'm curious about the details of your work.",
         'currentRole|motto': "That gives me a great picture of your role. Now let's get a bit more personal! 🎯",
-        'motto|photoReminder': "A motto says so much about who you are. Now, let's add a visual element! 🎨",
-        'photoReminder|projects': "Photo is all set! Now let's dive into the exciting part — your work and impact.",
+        'motto|projects': "A motto says so much about who you are. Now let's dive into your work and impact! 🚀",
         'projects|achievement': "Great projects! Now I'd love to zoom in on something you're especially proud of.",
         'achievement|contributions': "That's a highlight worth celebrating! Let's talk about another impactful moment.",
         'contributions|culture': "Your contributions speak volumes. Now I'd like to hear your thoughts on our workplace culture.",
@@ -562,7 +561,8 @@ app.post('/api/interview/chat', async (req, res) => {
         'aiPerspective|lessons': "Fascinating perspective on AI! Now let's reflect on the lessons your Whale Cloud journey has taught you.",
         'lessons|advice': "Those are lessons worth their weight in gold. Now, what would you tell others starting their journey?",
         'advice|openEnded': "Wonderful advice — I'm sure many will benefit from it. One more open question before we wrap up!",
-        'openEnded|complete': "Thank you for those final thoughts. It's been an incredible conversation! 🎉",
+        'openEnded|photoReminder': "Thank you for sharing all of that! One last step — let's add your photo to make your spotlight poster shine! 📸",
+        'photoReminder|complete': "Perfect! Your photo completes the picture. It's been an incredible conversation! 🎉",
       };
 
       const key = `${currentField}|${nextField}`;
