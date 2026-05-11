@@ -6,7 +6,21 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import heicConvert from 'heic-convert';
+// Dynamic import for heic-convert (needs native libheif, may not be available on all platforms)
+let _heicConvert = null;
+async function getHeicConvert() {
+  if (_heicConvert === null) {
+    try {
+      const mod = await import('heic-convert');
+      _heicConvert = mod.default || mod;
+      console.log('✅ heic-convert loaded');
+    } catch (e) {
+      console.warn('⚠️ heic-convert not available (HEIC photos will be saved as-is):', e.message);
+      _heicConvert = false;
+    }
+  }
+  return _heicConvert || null;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -219,19 +233,21 @@ app.post('/api/interview/chat', async (req, res) => {
 
           // Convert HEIC to JPEG for browser compatibility
           if (ext === 'heic' || ext === 'heif') {
-            try {
-              const jpegBuffer = await heicConvert({
-                buffer: photoData,
-                format: 'JPEG',
-                quality: 0.9
-              });
-              photoData = jpegBuffer;
-              ext = 'jpg';
-              // Update stored base64 to JPEG format
-              storedBase64 = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
-              console.log(`🔄 HEIC converted to JPEG`);
-            } catch (heicErr) {
-              console.error('HEIC conversion failed, saving as original:', heicErr.message);
+            const heicConvert = await getHeicConvert();
+            if (heicConvert) {
+              try {
+                const jpegBuffer = await heicConvert({
+                  buffer: photoData,
+                  format: 'JPEG',
+                  quality: 0.9
+                });
+                photoData = jpegBuffer;
+                ext = 'jpg';
+                storedBase64 = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
+                console.log(`🔄 HEIC converted to JPEG`);
+              } catch (heicErr) {
+                console.error('HEIC conversion failed, saving as original:', heicErr.message);
+              }
             }
           }
 
@@ -978,16 +994,19 @@ app.get('/api/photo/:id', (req, res) => {
 
         // Convert HEIC to JPEG on the fly for browser display
         if (ext === 'heic' || ext === 'heif') {
-          try {
-            const jpegBuffer = await heicConvert({
-              buffer: photoData,
-              format: 'JPEG',
-              quality: 0.9
-            });
-            photoData = jpegBuffer;
-            ext = 'jpg';
-          } catch (e) {
-            // Serve as original if conversion fails
+          const heicConvert = await getHeicConvert();
+          if (heicConvert) {
+            try {
+              const jpegBuffer = await heicConvert({
+                buffer: photoData,
+                format: 'JPEG',
+                quality: 0.9
+              });
+              photoData = jpegBuffer;
+              ext = 'jpg';
+            } catch (e) {
+              // Serve as original if conversion fails
+            }
           }
         }
 

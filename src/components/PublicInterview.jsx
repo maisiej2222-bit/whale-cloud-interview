@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, CheckCircle, Copy, Check, Upload, Image, RotateCcw, Download } from 'lucide-react';
 import axios from 'axios';
+import heic2any from 'heic2any';
 import './PublicInterview.css';
 
 const PublicInterview = () => {
@@ -176,62 +177,96 @@ const PublicInterview = () => {
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Check file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Photo size should be less than 5MB');
-        return;
+    if (!file) return;
+
+    // Check file size (max 10MB for HEIC, 5MB for others)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo size should be less than 5MB');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      return;
+    }
+
+    let resultDataUrl;
+
+    // Convert HEIC/HEIF to JPEG on the client side for browser compatibility
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
+      || file.name.toLowerCase().endsWith('.heic')
+      || file.name.toLowerCase().endsWith('.heif');
+
+    if (isHeic) {
+      try {
+        const jpegBlob = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.9
+        });
+        // heic2any may return a single blob or array of blobs
+        const blob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+        resultDataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      } catch (heicErr) {
+        console.error('HEIC conversion failed, uploading as-is:', heicErr);
+        // Fall back to uploading the original file
+        resultDataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
       }
+    } else {
+      resultDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
 
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please upload an image file');
-        return;
-      }
+    setProfilePhoto(resultDataUrl);
+    setPhotoPreview(resultDataUrl);
 
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        setProfilePhoto(reader.result);
-        setPhotoPreview(reader.result);
+    // Add a system message about photo upload
+    const photoMessage = {
+      role: 'system',
+      content: '✅ Profile photo uploaded successfully!'
+    };
+    const updatedMessages = [...messages, photoMessage];
+    setMessages(updatedMessages);
 
-        // Add a system message about photo upload
-        const photoMessage = {
-          role: 'system',
-          content: '✅ Profile photo uploaded successfully!'
-        };
-        const updatedMessages = [...messages, photoMessage];
-        setMessages(updatedMessages);
+    // Auto-progress to next question
+    setLoading(true);
+    try {
+      const response = await axios.post('/api/interview/chat', {
+        interviewId,
+        message: '✅ Photo uploaded',
+        profilePhoto: resultDataUrl
+      });
 
-        // Auto-progress to next question
-        setLoading(true);
-        try {
-          const response = await axios.post('/api/interview/chat', {
-            interviewId,
-            message: '✅ Photo uploaded',
-            profilePhoto: reader.result
-          });
-
-          const assistantMessage = {
-            role: 'assistant',
-            content: response.data.message
-          };
-
-          setMessages([...updatedMessages, assistantMessage]);
-
-          if (response.data.isComplete) {
-            setInterviewComplete(true);
-            // Auto-generate poster immediately
-            if (response.data.autoGeneratePoster) {
-              generatePoster(response.data.interviewId);
-            }
-          }
-        } catch (error) {
-          console.error('Error:', error);
-        } finally {
-          setLoading(false);
-        }
+      const assistantMessage = {
+        role: 'assistant',
+        content: response.data.message
       };
-      reader.readAsDataURL(file);
+
+      setMessages([...updatedMessages, assistantMessage]);
+
+      if (response.data.isComplete) {
+        setInterviewComplete(true);
+        // Auto-generate poster immediately
+        if (response.data.autoGeneratePoster) {
+          generatePoster(response.data.interviewId);
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
