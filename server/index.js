@@ -176,6 +176,7 @@ app.post('/api/interview/chat', async (req, res) => {
 
     // Try to recover from memory or create new
     let interview = activeInterviews.get(interviewId);
+    let wasRecovered = false;
 
     // If not in memory, try file recovery
     if (!interview) {
@@ -184,6 +185,7 @@ app.post('/api/interview/chat', async (req, res) => {
         try {
           const saved = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
           interview = { ...saved, currentQuestionIndex: saved.currentQuestionIndex || 0 };
+          wasRecovered = true;
           console.log(`📂 Recovered from file: ${interviewId}`);
         } catch (e) { /* file corrupted, start fresh */ }
       }
@@ -199,8 +201,8 @@ app.post('/api/interview/chat', async (req, res) => {
         createdAt: new Date().toISOString(),
         isPublic: true
       };
-    } else if (currentIndex !== undefined && currentIndex > interview.currentQuestionIndex) {
-      // Client knows better position (e.g. after server restart)
+    } else if (wasRecovered && currentIndex !== undefined && currentIndex > interview.currentQuestionIndex) {
+      // Client knows better position after server restart
       interview.currentQuestionIndex = currentIndex;
     }
 
