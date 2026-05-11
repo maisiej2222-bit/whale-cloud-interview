@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import heicConvert from 'heic-convert';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -212,15 +213,34 @@ app.post('/api/interview/chat', async (req, res) => {
         // Extract base64 data
         const matches = profilePhoto.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
         if (matches) {
-          const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-          const photoData = matches[2];
+          let ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          let photoData = Buffer.from(matches[2], 'base64');
+          let storedBase64 = profilePhoto;
+
+          // Convert HEIC to JPEG for browser compatibility
+          if (ext === 'heic' || ext === 'heif') {
+            try {
+              const jpegBuffer = await heicConvert({
+                buffer: photoData,
+                format: 'JPEG',
+                quality: 0.9
+              });
+              photoData = jpegBuffer;
+              ext = 'jpg';
+              // Update stored base64 to JPEG format
+              storedBase64 = `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
+              console.log(`🔄 HEIC converted to JPEG`);
+            } catch (heicErr) {
+              console.error('HEIC conversion failed, saving as original:', heicErr.message);
+            }
+          }
+
           const photoFilename = `${interviewId}.${ext}`;
           const photoPath = path.join(PHOTOS_DIR, photoFilename);
-          fs.writeFileSync(photoPath, Buffer.from(photoData, 'base64'));
+          fs.writeFileSync(photoPath, photoData);
           interview.profilePhoto = `/api/photo/${interviewId}`;
-          // Also store base64 in interview data for persistence across restarts
-          interview.profilePhotoData = profilePhoto;
-          console.log(`📸 Photo saved: ${photoFilename} (${(photoData.length * 0.75 / 1024).toFixed(1)} KB)`);
+          interview.profilePhotoData = storedBase64;
+          console.log(`📸 Photo saved: ${photoFilename} (${(photoData.length / 1024).toFixed(1)} KB)`);
         }
       } catch (err) {
         console.error('Error saving photo:', err.message);
@@ -925,14 +945,20 @@ app.delete('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
 app.get('/api/photo/:id', (req, res) => {
   try {
     const { id } = req.params;
-    // Check for jpg first, then png on disk
-    let photoPath = path.join(PHOTOS_DIR, `${id}.jpg`);
-    if (!fs.existsSync(photoPath)) {
-      photoPath = path.join(PHOTOS_DIR, `${id}.png`);
+    // Check for common image formats on disk
+    const formats = ['jpg', 'png', 'heic', 'heif', 'webp', 'gif'];
+    let photoPath = null;
+    for (const fmt of formats) {
+      const testPath = path.join(PHOTOS_DIR, `${id}.${fmt}`);
+      if (fs.existsSync(testPath)) {
+        photoPath = testPath;
+        break;
+      }
     }
-    if (fs.existsSync(photoPath)) {
+    if (photoPath) {
       const ext = path.extname(photoPath).slice(1);
-      res.setHeader('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`);
+      const mime = ext === 'jpg' ? 'jpeg' : ext === 'heic' ? 'heic' : ext;
+      res.setHeader('Content-Type', `image/${mime}`);
       return res.sendFile(photoPath);
     }
 
@@ -947,9 +973,26 @@ app.get('/api/photo/:id', (req, res) => {
     if (interview && interview.profilePhotoData) {
       const matches = interview.profilePhotoData.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
       if (matches) {
-        const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-        const photoData = Buffer.from(matches[2], 'base64');
-        res.setHeader('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`);
+        let ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+        let photoData = Buffer.from(matches[2], 'base64');
+
+        // Convert HEIC to JPEG on the fly for browser display
+        if (ext === 'heic' || ext === 'heif') {
+          try {
+            const jpegBuffer = await heicConvert({
+              buffer: photoData,
+              format: 'JPEG',
+              quality: 0.9
+            });
+            photoData = jpegBuffer;
+            ext = 'jpg';
+          } catch (e) {
+            // Serve as original if conversion fails
+          }
+        }
+
+        const mime = ext === 'jpg' ? 'jpeg' : ext;
+        res.setHeader('Content-Type', `image/${mime}`);
         return res.send(photoData);
       }
     }
