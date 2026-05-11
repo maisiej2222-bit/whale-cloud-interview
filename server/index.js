@@ -218,6 +218,8 @@ app.post('/api/interview/chat', async (req, res) => {
           const photoPath = path.join(PHOTOS_DIR, photoFilename);
           fs.writeFileSync(photoPath, Buffer.from(photoData, 'base64'));
           interview.profilePhoto = `/api/photo/${interviewId}`;
+          // Also store base64 in interview data for persistence across restarts
+          interview.profilePhotoData = profilePhoto;
           console.log(`📸 Photo saved: ${photoFilename} (${(photoData.length * 0.75 / 1024).toFixed(1)} KB)`);
         }
       } catch (err) {
@@ -642,6 +644,7 @@ app.post('/api/interview/generate-poster', async (req, res) => {
       motto: interview.answers.motto || 'Dedicated to excellence',
       introduction: `${interview.answers.name} joined Whale Cloud in ${interview.answers.joinTime}, working as ${interview.answers.position} in the ${interview.answers.team} team. ${interview.answers.currentRole || ''}`,
       achievement: interview.answers.achievement || 'Making valuable contributions to the team',
+      profilePhoto: interview.profilePhoto || interview.profilePhotoData || null,
       qa_session: [
         {
           question: "What are your main projects?",
@@ -921,17 +924,36 @@ app.delete('/api/admin/interviews/:id', authenticateAdmin, (req, res) => {
 app.get('/api/photo/:id', (req, res) => {
   try {
     const { id } = req.params;
-    // Check for jpg first, then png
+    // Check for jpg first, then png on disk
     let photoPath = path.join(PHOTOS_DIR, `${id}.jpg`);
     if (!fs.existsSync(photoPath)) {
       photoPath = path.join(PHOTOS_DIR, `${id}.png`);
     }
-    if (!fs.existsSync(photoPath)) {
-      return res.status(404).json({ error: 'Photo not found' });
+    if (fs.existsSync(photoPath)) {
+      const ext = path.extname(photoPath).slice(1);
+      res.setHeader('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`);
+      return res.sendFile(photoPath);
     }
-    const ext = path.extname(photoPath).slice(1);
-    res.setHeader('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`);
-    res.sendFile(photoPath);
+
+    // Fall back to embedded base64 in interview data (survives Railway restarts)
+    let interview = activeInterviews.get(id);
+    if (!interview) {
+      const filePath = path.join(DATA_DIR, `${id}.json`);
+      if (fs.existsSync(filePath)) {
+        interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      }
+    }
+    if (interview && interview.profilePhotoData) {
+      const matches = interview.profilePhotoData.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+      if (matches) {
+        const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+        const photoData = Buffer.from(matches[2], 'base64');
+        res.setHeader('Content-Type', `image/${ext === 'jpg' ? 'jpeg' : ext}`);
+        return res.send(photoData);
+      }
+    }
+
+    return res.status(404).json({ error: 'Photo not found' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load photo' });
   }

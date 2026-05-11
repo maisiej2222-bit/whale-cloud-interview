@@ -370,6 +370,18 @@ const PublicInterview = () => {
             </div>
           ) : posterContent ? (
             <div className="poster-sections">
+              {/* Profile Photo */}
+              {posterContent.profilePhoto && (
+                <div className="content-block photo-block">
+                  <div className="block-header">
+                    <span className="badge photo-badge">Profile Photo</span>
+                  </div>
+                  <div className="photo-display">
+                    <img src={posterContent.profilePhoto} alt="Profile" />
+                  </div>
+                </div>
+              )}
+
               {/* Title */}
               <div className="content-block">
                 <div className="block-header">
