@@ -15,6 +15,7 @@ const PublicInterview = () => {
   const [copiedField, setCopiedField] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [posterPhotoUrl, setPosterPhotoUrl] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -46,6 +47,31 @@ const PublicInterview = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Convert HEIC poster photos for browser display
+  useEffect(() => {
+    if (!posterContent?.profilePhoto) return;
+    const photo = posterContent.profilePhoto;
+    const isHeic = photo.startsWith('data:image/heic') || photo.startsWith('data:image/heif');
+    if (!isHeic) { setPosterPhotoUrl(photo); return; }
+    (async () => {
+      try {
+        const base64 = photo.split(',')[1];
+        const byteChars = atob(base64);
+        const bytes = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'image/heic' });
+        const jpegBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 });
+        const resultBlob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+        const reader = new FileReader();
+        reader.onloadend = () => setPosterPhotoUrl(reader.result);
+        reader.readAsDataURL(resultBlob);
+      } catch (e) {
+        console.error('HEIC poster conversion failed:', e);
+        setPosterPhotoUrl(photo);
+      }
+    })();
+  }, [posterContent?.profilePhoto]);
 
   // Auto-save session
   useEffect(() => {
@@ -413,7 +439,7 @@ const PublicInterview = () => {
                     <button
                       onClick={() => {
                         const a = document.createElement('a');
-                        a.href = posterContent.profilePhoto;
+                        a.href = posterPhotoUrl || posterContent.profilePhoto;
                         a.download = 'profile-photo.jpg';
                         a.click();
                       }}
@@ -424,7 +450,7 @@ const PublicInterview = () => {
                     </button>
                   </div>
                   <div className="photo-display">
-                    <img src={posterContent.profilePhoto} alt="Profile" />
+                    <img src={posterPhotoUrl || posterContent.profilePhoto} alt="Profile" />
                   </div>
                 </div>
               )}

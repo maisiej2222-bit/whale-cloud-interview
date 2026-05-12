@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Download, Trash2, Eye, X, Calendar, User, Briefcase } from 'lucide-react';
 import axios from 'axios';
+import heic2any from 'heic2any';
 import './AdminPanel.css';
 
 const AdminPanel = ({ isAuthenticated, onAuthenticate }) => {
@@ -10,6 +11,7 @@ const AdminPanel = ({ isAuthenticated, onAuthenticate }) => {
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [authToken, setAuthToken] = useState(localStorage.getItem('adminToken') || '');
+  const [convertedPhotos, setConvertedPhotos] = useState({});
 
   useEffect(() => {
     if (authToken && !isAuthenticated) {
@@ -22,6 +24,33 @@ const AdminPanel = ({ isAuthenticated, onAuthenticate }) => {
       loadInterviews();
     }
   }, [isAuthenticated]);
+
+  // Convert HEIC photos to JPEG for browser display
+  useEffect(() => {
+    if (!selectedInterview?.profilePhoto) return;
+    const photo = selectedInterview.profilePhoto;
+    if (convertedPhotos[photo]) return;
+    const isHeic = photo.startsWith('data:image/heic') || photo.startsWith('data:image/heif');
+    if (!isHeic) return;
+    (async () => {
+      try {
+        const base64 = photo.split(',')[1];
+        const byteChars = atob(base64);
+        const bytes = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'image/heic' });
+        const jpegBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 });
+        const resultBlob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setConvertedPhotos(prev => ({ ...prev, [photo]: reader.result }));
+        };
+        reader.readAsDataURL(resultBlob);
+      } catch (e) {
+        console.error('HEIC display conversion failed:', e);
+      }
+    })();
+  }, [selectedInterview]);
 
   const verifyToken = async () => {
     try {
@@ -260,13 +289,13 @@ const AdminPanel = ({ isAuthenticated, onAuthenticate }) => {
                     <div className="detail-section">
                       <h4>Profile Photo</h4>
                       <div className="profile-photo-display">
-                        <img src={selectedInterview.profilePhoto} alt="Profile" />
+                        <img src={convertedPhotos[selectedInterview.profilePhoto] || selectedInterview.profilePhoto} alt="Profile" />
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
                         <button
                           onClick={() => {
                             const a = document.createElement('a');
-                            a.href = selectedInterview.profilePhoto;
+                            a.href = convertedPhotos[selectedInterview.profilePhoto] || selectedInterview.profilePhoto;
                             a.download = `${selectedInterview.name || 'profile'}-photo.jpg`;
                             a.click();
                           }}

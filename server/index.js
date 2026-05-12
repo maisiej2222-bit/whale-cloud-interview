@@ -949,8 +949,10 @@ app.get('/api/photo/:id', (req, res) => {
         interview = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       }
     }
-    if (interview && interview.profilePhotoData) {
-      const matches = interview.profilePhotoData.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+    // Check profilePhotoData first (new format), then profilePhoto (old format may contain data URL directly)
+    const photoDataUrl = interview?.profilePhotoData || interview?.profilePhoto;
+    if (photoDataUrl && photoDataUrl.startsWith('data:image/')) {
+      const matches = photoDataUrl.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
       if (matches) {
         const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
         const photoData = Buffer.from(matches[2], 'base64');
